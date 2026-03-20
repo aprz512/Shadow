@@ -7,11 +7,10 @@ import javax.lang.model.element.Modifier
 buildscript {
     repositories {
         if (!System.getenv().containsKey("DISABLE_TENCENT_MAVEN_MIRROR")) {
-            maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
-        } else {
-            google()
-            mavenCentral()
+            maven { url = 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
         }
+        google()
+        mavenCentral()
     }
     dependencies {
         classpath "com.squareup:javapoet:$javapoet_version"
@@ -41,15 +40,31 @@ dependencies {
 
 
 java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+
     sourceSets {
         main.java.srcDirs += 'build/generateCode'
     }
 }
 
+compileKotlin {
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+}
+
+compileTestKotlin {
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+}
+
 def generateCode = tasks.register('generateCode') {
     def androidJarPath = project(':get-android-jar').androidJarPath
+    def outputDir = layout.buildDirectory.dir('generateCode')
     inputs.property('androidJarPath', androidJarPath)
-    outputs.dir(layout.buildDirectory.dir('generateCode'))
+    outputs.dir(outputDir)
             .withPropertyName('outputDir')
     doLast {
         def androidJarPathField
@@ -61,7 +76,7 @@ def generateCode = tasks.register('generateCode') {
                 .addField(androidJarPathField).build()
 
         JavaFile.builder("com.tencent.shadow.coding.common_jar_settings", androidJarClass)
-                .build().writeTo(new File(project.getBuildDir(), 'generateCode'))
+                .build().writeTo(outputDir.get().asFile)
     }
 }
 

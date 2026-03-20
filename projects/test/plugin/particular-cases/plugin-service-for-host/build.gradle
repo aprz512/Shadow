@@ -2,12 +2,13 @@ apply plugin: 'com.android.application'
 apply plugin: 'com.tencent.shadow.plugin'
 
 android {
-    compileSdkVersion project.COMPILE_SDK_VERSION
+    compileSdk = project.COMPILE_SDK_VERSION
+    namespace = 'com.tencent.shadow.test.plugin.particular_cases.plugin_service_for_host'
 
     defaultConfig {
         applicationId 'com.tencent.shadow.test.plugin.particular_cases.plugin_service_for_host'
-        minSdkVersion project.MIN_SDK_VERSION
-        targetSdkVersion project.TARGET_SDK_VERSION
+        minSdk = project.MIN_SDK_VERSION
+        targetSdk = project.TARGET_SDK_VERSION
         versionCode project.VERSION_CODE
         versionName project.VERSION_NAME
     }
@@ -15,9 +16,9 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
-            signingConfig signingConfigs.create("release")
+            signingConfig = signingConfigs.create("release")
             signingConfig.initWith(buildTypes.debug.signingConfig)
         }
     }
@@ -30,12 +31,12 @@ android {
     }
 
     // 将插件的资源ID分区改为和宿主0x7F不同的值
-    aaptOptions {
-        additionalParameters "--package-id", "0x7E", "--allow-reserved-package-id"
+    androidResources {
+        additionalParameters.addAll(["--package-id", "0x7E", "--allow-reserved-package-id"])
     }
 
-    lintOptions {
-        abortOnError false
+    lint {
+        abortOnError = false
     }
 }
 
@@ -48,7 +49,7 @@ dependencies {
 buildscript {
     repositories {
         if (!System.getenv().containsKey("DISABLE_TENCENT_MAVEN_MIRROR")) {
-            maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
+            maven { url = 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
         } else {
             google()
             mavenCentral()
@@ -62,4 +63,3 @@ buildscript {
         classpath "org.javassist:javassist:$javassist_version"
     }
 }
-

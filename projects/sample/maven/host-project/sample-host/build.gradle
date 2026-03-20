@@ -1,11 +1,12 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 29
+    compileSdk = 29
+    namespace = 'com.tencent.shadow.sample.host'
     defaultConfig {
         applicationId "com.tencent.shadow.sample.host"
-        minSdkVersion 16
-        targetSdkVersion 28
+        minSdk = 16
+        targetSdk = 28
         versionCode 1
         versionName "1.0"
     }
@@ -14,7 +15,7 @@ android {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
-            signingConfig signingConfigs.create("release")
+            signingConfig = signingConfigs.create("release")
             signingConfig.initWith(buildTypes.debug.signingConfig)
         }
     }

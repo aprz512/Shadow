@@ -1,13 +1,14 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion project.COMPILE_SDK_VERSION
+    compileSdk = project.COMPILE_SDK_VERSION
+    namespace = 'com.tencent.shadow.sample.hello.host'
     defaultConfig {
         //region hello.apk 演示
         applicationId 'com.tencent.shadow.sample.hello.host'
         //endregion
-        minSdkVersion project.MIN_SDK_VERSION
-        targetSdkVersion project.TARGET_SDK_VERSION
+        minSdk = project.MIN_SDK_VERSION
+        targetSdk = project.TARGET_SDK_VERSION
         versionCode project.VERSION_CODE
         versionName project.VERSION_NAME
         testInstrumentationRunner "com.tencent.shadow.test.CustomAndroidJUnitRunner"
@@ -15,14 +16,14 @@ android {
     buildTypes {
         debug {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
 
         release {
             minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
-            signingConfig signingConfigs.create("release")
+            signingConfig = signingConfigs.create("release")
             signingConfig.initWith(buildTypes.debug.signingConfig)
         }
     }
@@ -36,9 +37,9 @@ android {
         }
     }
     //endregion
-    lintOptions {
-        checkReleaseBuilds false
-        abortOnError false
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 }
 
@@ -52,29 +53,28 @@ dependencies {
 }
 
 def createCopyTask(projectName, buildType, name, apkName, inputFile, taskName) {
-    def outputFile = file("${getBuildDir()}/generated/assets/${name}/${buildType}/${apkName}")
-    outputFile.getParentFile().mkdirs()
-    return tasks.create("copy${buildType.capitalize()}${name.capitalize()}Task", Copy) {
+    def outputDir = layout.buildDirectory.dir("generated/assets/${name}/${buildType}")
+    return tasks.register("copy${buildType.capitalize()}${name.capitalize()}Task", Copy) {
         group = 'build'
         description = "复制${name}到assets中."
         from(inputFile.getParent()) {
             include(inputFile.name)
-            rename { outputFile.name }
+            rename { apkName }
         }
-        into(outputFile.getParent())
-
-    }.dependsOn("${projectName}:${taskName}")
+        into(outputDir)
+        dependsOn("${projectName}:${taskName}")
+    }
 }
 
 //region hello.apk 演示
-def generateHelloAssets(generateAssetsTask, buildType) {
+def registerHelloAssets(buildType) {
     def moduleName = 'sample-hello-apk'
     def pluginManagerApkFile = file(
             "${project(":sample-hello-apk").getBuildDir()}" +
                     "/outputs/apk/${buildType}/" +
                     "${moduleName}-${buildType}.apk"
     )
-    generateAssetsTask.dependsOn createCopyTask(
+    return createCopyTask(
             ':sample-hello-apk',
             buildType,
             moduleName,
@@ -85,15 +85,19 @@ def generateHelloAssets(generateAssetsTask, buildType) {
 }
 //endregion
 
-tasks.whenTaskAdded { task ->
-    if (task.name == "generateDebugAssets") {
-        //region hello.apk 演示
-        generateHelloAssets(task, 'debug')
-        //endregion
-    }
-    if (task.name == "generateReleaseAssets") {
-        //region hello.apk 演示
-        generateHelloAssets(task, 'release')
-        //endregion
+def wireGeneratedAsset(buildType, assetTask) {
+    def capitalizedBuildType = buildType.capitalize()
+    tasks.configureEach { task ->
+        def lowerCaseTaskName = task.name.toLowerCase()
+        def isVariantLintTask = lowerCaseTaskName.contains('lint') &&
+                lowerCaseTaskName.contains(buildType.toLowerCase())
+        if (task.name == "merge${capitalizedBuildType}Assets" || isVariantLintTask) {
+            task.dependsOn(assetTask)
+        }
     }
 }
+
+//region hello.apk 演示
+wireGeneratedAsset('debug', registerHelloAssets('debug'))
+wireGeneratedAsset('release', registerHelloAssets('release'))
+//endregion

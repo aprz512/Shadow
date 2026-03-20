@@ -84,10 +84,10 @@ open class ShadowPluginHelper {
             val packagePlugin = project.extensions.findByName("packagePlugin")
             val extension = packagePlugin as PackagePluginExtension
 
-            val splitList = buildType.runtimeApkConfig.second.split(":")
+            val splitList = buildType.runtimeApkConfig.getSecond().split(":")
             val runtimeFileParent =
-                splitList[splitList.lastIndex].replace("assemble", "").toLowerCase()
-            val runtimeApkName: String = buildType.runtimeApkConfig.first
+                splitList[splitList.lastIndex].replace("assemble", "").lowercase()
+            val runtimeApkName: String = buildType.runtimeApkConfig.getFirst()
             val runtimeFile = File(
                 "${project.rootDir}" +
                         "/${extension.runtimeApkProjectPath}/build/outputs/apk/$runtimeFileParent/$runtimeApkName"
@@ -107,10 +107,10 @@ open class ShadowPluginHelper {
             val packagePlugin = project.extensions.findByName("packagePlugin")
             val extension = packagePlugin as PackagePluginExtension
 
-            val loaderApkName: String = buildType.loaderApkConfig.first
-            val splitList = buildType.loaderApkConfig.second.split(":")
+            val loaderApkName: String = buildType.loaderApkConfig.getFirst()
+            val splitList = buildType.loaderApkConfig.getSecond().split(":")
             val loaderFileParent =
-                splitList[splitList.lastIndex].replace("assemble", "").toLowerCase()
+                splitList[splitList.lastIndex].replace("assemble", "").lowercase()
             val loaderFile = File(
                 "${project.rootDir}" +
                         "/${extension.loaderApkProjectPath}/build/outputs/apk/$loaderFileParent/$loaderApkName"

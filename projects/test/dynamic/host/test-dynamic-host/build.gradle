@@ -1,11 +1,12 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion project.COMPILE_SDK_VERSION
+    compileSdk = project.COMPILE_SDK_VERSION
+    namespace = 'com.tencent.shadow.test.dynamic.host'
     defaultConfig {
         applicationId project.TEST_HOST_APP_APPLICATION_ID
-        minSdkVersion project.MIN_SDK_VERSION
-        targetSdkVersion project.TARGET_SDK_VERSION
+        minSdk = project.MIN_SDK_VERSION
+        targetSdk = project.TARGET_SDK_VERSION
         versionCode project.VERSION_CODE
         versionName project.VERSION_NAME
         testInstrumentationRunner "com.tencent.shadow.test.CustomAndroidJUnitRunner"
@@ -13,7 +14,7 @@ android {
     buildTypes {
         debug {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
     sourceSets {
@@ -22,9 +23,9 @@ android {
             assets.srcDir('build/generated/assets/plugin-zip/debug/')
         }
     }
-    lintOptions {
-        checkReleaseBuilds false
-        abortOnError false
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
     testOptions {
         animationsDisabled = true
@@ -66,22 +67,22 @@ dependencies {
     androidTestTarget34Implementation "androidx.test:runner:1.6.1"
 }
 
-def createCopyTask(projectName, buildType, name, apkName, inputFile, taskName, forTask) {
-    def outputFile = file("${getBuildDir()}/generated/assets/${name}/${buildType}/${apkName}")
-    outputFile.getParentFile().mkdirs()
-    return tasks.create("copy${buildType.capitalize()}${name.capitalize()}For${forTask.capitalize()}", Copy) {
+def createCopyTask(projectName, buildType, name, apkName, inputFile, taskName) {
+    def outputDir = layout.buildDirectory.dir("generated/assets/${name}/${buildType}")
+    return tasks.register("copy${buildType.capitalize()}${name.capitalize()}Task", Copy) {
         group = 'build'
         description = "复制${name}到assets中."
         from(inputFile.getParent()) {
             include(inputFile.name)
-            rename { outputFile.name }
+            rename { apkName }
         }
-        into(outputFile.getParent())
-
-    }.dependsOn("${projectName}:${taskName}")
+        into(outputDir)
+        dependsOn("${projectName}:${taskName}")
+    }
 }
 
-def generateAssets(generateAssetsTask, buildType) {
+def registerGeneratedAssets(buildType) {
+    def assetTasks = []
 
     def moduleName = 'test-dynamic-manager'
     def pluginManagerApkFile = file(
@@ -89,32 +90,41 @@ def generateAssets(generateAssetsTask, buildType) {
                     "/outputs/apk/${buildType}/" +
                     "${moduleName}-${buildType}.apk"
     )
-    generateAssetsTask.dependsOn createCopyTask(
+    assetTasks << createCopyTask(
             ':test-dynamic-manager',
             buildType,
             moduleName,
             'pluginmanager.apk',
             pluginManagerApkFile,
-            "assemble${buildType.capitalize()}",
-            generateAssetsTask.name
+            "assemble${buildType.capitalize()}"
     )
 
-    def pluginZip = file("${getRootProject().getBuildDir()}/plugin-${buildType}.zip")
-    generateAssetsTask.dependsOn createCopyTask(
+    def pluginZip = file("${project(":test-plugin-general-cases").getBuildDir()}/outputs/plugin-zip/plugin-${buildType}.zip")
+    assetTasks << createCopyTask(
             ':test-plugin-general-cases',
             buildType,
             'plugin-zip',
             "plugin-${buildType}.zip",
             pluginZip,
-            "package${buildType.capitalize()}Plugin",
-            generateAssetsTask.name
+            "package${buildType.capitalize()}Plugin"
     )
 
-
+    return assetTasks
 }
 
-tasks.whenTaskAdded { task ->
-    if (task.name == "generateTarget28DebugAssets" || task.name == "generateTarget34DebugAssets") {
-        generateAssets(task, 'debug')
+def wireGeneratedAssets(buildType, assetTasks) {
+    tasks.configureEach { task ->
+        def lowerCaseTaskName = task.name.toLowerCase()
+        def isVariantAssetsTask =
+                lowerCaseTaskName.startsWith('generate') &&
+                        lowerCaseTaskName.endsWith('assets') &&
+                        lowerCaseTaskName.contains(buildType.toLowerCase())
+        def isVariantLintTask = lowerCaseTaskName.contains('lint') &&
+                lowerCaseTaskName.contains(buildType.toLowerCase())
+        if (isVariantAssetsTask || isVariantLintTask) {
+            task.dependsOn(assetTasks)
+        }
     }
 }
+
+wireGeneratedAssets('debug', registerGeneratedAssets('debug'))

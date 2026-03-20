@@ -1,5 +1,10 @@
 apply plugin: 'kotlin'
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation "com.squareup:javapoet:$javapoet_version"
@@ -11,13 +16,12 @@ dependencies {
 
 compileKotlin {
     kotlinOptions {
-        jvmTarget = "1.6"
-        apiVersion = "1.3"// 兼容低版本Gradle和https://youtrack.jetbrains.com/issue/KT-39389
+        jvmTarget = "1.8"
     }
 }
 
 compileTestKotlin {
     kotlinOptions {
-        jvmTarget = "1.6"
+        jvmTarget = "1.8"
     }
 }

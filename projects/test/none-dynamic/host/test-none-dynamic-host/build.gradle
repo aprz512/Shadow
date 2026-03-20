@@ -1,11 +1,12 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion project.COMPILE_SDK_VERSION
+    compileSdk = project.COMPILE_SDK_VERSION
+    namespace = 'com.tencent.shadow.test.none_dynamic.host'
     defaultConfig {
         applicationId project.TEST_HOST_APP_APPLICATION_ID
-        minSdkVersion project.MIN_SDK_VERSION
-        targetSdkVersion project.TARGET_SDK_VERSION
+        minSdk = project.MIN_SDK_VERSION
+        targetSdk = project.TARGET_SDK_VERSION
         versionCode project.VERSION_CODE
         versionName project.VERSION_NAME
         testInstrumentationRunner "com.tencent.shadow.test.none_dynamic.host.CustomAndroidJUnitRunner"
@@ -13,14 +14,14 @@ android {
     buildTypes {
         debug {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
 
         release {
             minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
-            signingConfig signingConfigs.create("release")
+            signingConfig = signingConfigs.create("release")
             signingConfig.initWith(buildTypes.debug.signingConfig)
         }
     }
@@ -32,9 +33,9 @@ android {
             assets.srcDir('build/generated/assets/test-plugin-general-cases/release/')
         }
     }
-    lintOptions {
-        checkReleaseBuilds false
-        abortOnError false
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 }
 
@@ -54,23 +55,31 @@ dependencies {
 def createCopyTask(projectName, buildType, name, apkName) {
     def split = (projectName as String).split(':')
     def moduleName = split[split.length - 1]
-    def outputFile = file("${getBuildDir()}/generated/assets/${name}/${buildType}/${apkName}")
-    outputFile.getParentFile().mkdirs()
     def inputFile = file("${project("${projectName}").getBuildDir()}/outputs/apk/plugin/${buildType}/${moduleName}-plugin-${buildType}.apk")
-    return tasks.create("copy${buildType.capitalize()}${name.capitalize()}Task", Copy) {
+    def outputDir = layout.buildDirectory.dir("generated/assets/${name}/${buildType}")
+    return tasks.register("copy${buildType.capitalize()}${name.capitalize()}Task", Copy) {
         group = 'build'
         description = "复制${name}到assets中."
         from(inputFile.getParent()) {
             include(inputFile.name)
-            rename { outputFile.name }
+            rename { apkName }
         }
-        into(outputFile.getParent())
-
-    }.dependsOn("${projectName}:assemblePlugin${buildType.capitalize()}")
-}
-
-tasks.whenTaskAdded { task ->
-    if (task.name == "generateDebugAssets") {
-        task.dependsOn createCopyTask(':test-plugin-general-cases', 'debug', 'test-plugin-general-cases', 'plugin.apk')
+        into(outputDir)
+        dependsOn("${projectName}:assemblePlugin${buildType.capitalize()}")
     }
 }
+
+def wireGeneratedAsset(buildType, assetTask) {
+    def capitalizedBuildType = buildType.capitalize()
+    tasks.configureEach { task ->
+        def lowerCaseTaskName = task.name.toLowerCase()
+        def isVariantLintTask = lowerCaseTaskName.contains('lint') &&
+                lowerCaseTaskName.contains(buildType.toLowerCase())
+        if (task.name == "merge${capitalizedBuildType}Assets" || isVariantLintTask) {
+            task.dependsOn(assetTask)
+        }
+    }
+}
+
+wireGeneratedAsset('debug', createCopyTask(':test-plugin-general-cases', 'debug', 'test-plugin-general-cases', 'plugin.apk'))
+wireGeneratedAsset('release', createCopyTask(':test-plugin-general-cases', 'release', 'test-plugin-general-cases', 'plugin.apk'))

@@ -1,15 +1,36 @@
 apply plugin: 'com.android.library'
 
 android {
-    compileSdkVersion project.COMPILE_SDK_VERSION
+    compileSdk = project.COMPILE_SDK_VERSION
+    namespace = 'com.tencent.shadow.coding.get_android_jar'
 }
 
-def sdkPath = android.sdkDirectory
-def androidJarPath = new File(sdkPath, "platforms/${android.compileSdkVersion}/android.jar")
+def resolveSdkDir(Project project) {
+    def propertiesFile = project.rootProject.file('local.properties')
+    if (propertiesFile.exists()) {
+        def properties = new Properties()
+        properties.load(propertiesFile.newDataInputStream())
+        def sdkDir = properties.getProperty('sdk.dir')
+        if (sdkDir) {
+            return file(sdkDir)
+        }
+    }
+
+    def sdkDir = System.getenv('ANDROID_HOME') ?: System.getenv('ANDROID_SDK_ROOT')
+    if (sdkDir) {
+        return file(sdkDir)
+    }
+
+    throw new RuntimeException('SDK location not found. Please set sdk.dir or ANDROID_HOME/ANDROID_SDK_ROOT')
+}
+
+def sdkPath = resolveSdkDir(project)
+def compileSdkDirName = "android-${project.COMPILE_SDK_VERSION}"
+def androidJarPath = new File(sdkPath, "platforms/${compileSdkDirName}/android.jar")
 
 if (!androidJarPath.exists()) {
     println("File $androidJarPath not exists!")
-    throw new RuntimeException("Android SDK ${android.compileSdkVersion} 没有安装")
+    throw new RuntimeException("Android SDK ${compileSdkDirName} 没有安装")
 }
 
 ext.set('androidJarPath', androidJarPath)

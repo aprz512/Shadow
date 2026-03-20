@@ -1,7 +1,6 @@
 package com.tencent.shadow.core.manifest_parser
 
 import java.io.File
-import java.util.Collections
 
 /**
  * manifest-parser的入口方法
@@ -10,74 +9,65 @@ import java.util.Collections
  *                      一般位于apk工程的build/intermediates/merged_manifest目录中。
  * @param outputDir     生成文件的输出目录
  * @param packageName   生成类的包名
- * @param manifestValueParser 资源解析器
+ * @param resourcePackageName 本地资源R类的包名
  */
 fun generatePluginManifest(
     xmlFile: File,
     outputDir: File,
     packageName: String,
-    manifestValueParser: ManifestValueParser? = null
+    resourcePackageName: String? = null,
+    resourceReferencePackageLookup: Map<String, String> = emptyMap()
 ) {
     val androidManifest = AndroidManifestReader().read(xmlFile)
     val generator = PluginManifestGenerator()
-    generator.generate(androidManifest, outputDir, packageName, manifestValueParser)
+    generator.generate(
+        androidManifest,
+        outputDir,
+        packageName,
+        resourcePackageName,
+        resourceReferencePackageLookup
+    )
 }
 
-/**
- * 创建资源解析器。
- *
- * @param rTxt R.txt文件
- * @return 资源解析器
- */
-fun createManifestValueParser(rTxt: File): ManifestValueParser {
-    val rTxtMap = parseRTxt(rTxt)
-
-    return { resName ->
-        if (resName.startsWith("@android:")) {
-            // @android:style/Theme.NoTitleBar -> android.R.style.Theme_NoTitleBar
-            val parts = resName.substringAfter("@android:").split("/")
-            val type = parts[0]
-            val name = parts[1].replace(".", "_")
-            "android.R.$type.$name"
-        } else {
-            // @[package:]type/name -> id 值
-            var raw = resName.substringAfter("@")
-            if (raw.contains(":")) {
-                raw = raw.substringAfter(":")
-            }
-            val parts = raw.split("/")
-            val type = parts[0]
-            val name = parts[1].replace('.', '_')
-            val key = "@$type/$name"
-            rTxtMap[key]
-                ?: throw IllegalArgumentException("Resource not found in R.txt: $resName (normalized: $key)")
-        }
-    }
+fun collectManifestResourceReferences(xmlFile: File): Set<String> {
+    val androidManifest = AndroidManifestReader().read(xmlFile)
+    return collectManifestResourceReferences(androidManifest)
 }
 
-/**
- * 解析 R.txt 文件并生成资源 ID 映射表。 R.txt 包含项目引用的所有资源 ID。
- *
- * @param rTxtFile R.txt 文件对象
- * @return 资源全称（如 @string/app_name）到 ID 的映射
- */
-fun parseRTxt(rTxtFile: File): Map<String, String> {
-    if (!rTxtFile.exists()) return Collections.emptyMap()
+fun normalizeResourceReference(reference: String): String {
+    val parts = reference.split("/", limit = 2)
+    if (parts.size != 2) {
+        return reference
+    }
+    val type = parts[0]
+    val entryName = parts[1]
+        .replace('.', '_')
+        .replace('-', '_')
+    return "$type/$entryName"
+}
 
-    val map = mutableMapOf<String, String>()
-    rTxtFile.useLines {
-        it.forEach { line ->
-            if (!(line.startsWith("int "))) {
-                return@forEach
+internal fun collectManifestResourceReferences(manifestMap: ManifestMap): Set<String> {
+    val references = linkedSetOf<String>()
+
+    fun collect(value: Any?) {
+        when (value) {
+            null -> Unit
+            is String -> {
+                if (value.startsWith("@") &&
+                    !value.startsWith("@android:") &&
+                    !value.startsWith("@0x") &&
+                    !value.startsWith("@ref/")
+                ) {
+                    references.add(normalizeResourceReference(value.removePrefix("@")))
+                }
             }
-            val parts = line.split(Regex("\\s+")).filter { it.isNotBlank() }
-            if (parts.size == 4 && parts[0] == "int") {
-                val type = parts[1]
-                val name = parts[2]
-                val idStr = parts[3]
-                map["@$type/$name"] = idStr
-            }
+
+            is Map<*, *> -> value.values.forEach(::collect)
+            is Array<*> -> value.forEach(::collect)
+            is Iterable<*> -> value.forEach(::collect)
         }
     }
-    return map
+
+    collect(manifestMap)
+    return references
 }

@@ -27,10 +27,29 @@ allprojects {
     ext.SAMPLE_HOST_APP_APPLICATION_ID = 'com.tencent.shadow.sample.host'
     repositories {
         if (!System.getenv().containsKey("DISABLE_TENCENT_MAVEN_MIRROR")) {
-            maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
-        } else {
-            google()
-            mavenCentral()
+            maven { url = 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
         }
+        google()
+        mavenCentral()
+    }
+}
+
+def configureAndroidBuildFeatures = { Project project ->
+    def android = project.extensions.findByName('android')
+    if (android == null || !android.hasProperty('buildFeatures')) {
+        return
+    }
+    def buildFeatures = android.buildFeatures
+    if (buildFeatures != null && buildFeatures.hasProperty('buildConfig')) {
+        buildFeatures.buildConfig = true
+    }
+}
+
+subprojects { Project project ->
+    project.plugins.withId('com.android.application') {
+        configureAndroidBuildFeatures(project)
+    }
+    project.plugins.withId('com.android.library') {
+        configureAndroidBuildFeatures(project)
     }
 }

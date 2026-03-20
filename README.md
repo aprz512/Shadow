@@ -51,9 +51,8 @@ Shadow的所有代码都位于`projects`目录下的3个目录，分别是：
 Shadow项目有较为完善的自动化测试，因此最新代码对外部环境的版本兼容性可以参考自动化测试的配置。
 
 * [pr-check.yml](.github/workflows/pr-check.yml) 虚拟机自动化测试，包含Android测试机版本和编译环境JDK等版本。
-* [pr-check-gradle-plugin.yml](.github/workflows/pr-check-gradle-plugin.yml) AGP兼容性测试。
-  其中指向的[test_JDK17.sh](projects/test/gradle-plugin-agp-compat-test/test_JDK17.sh)和
-  [test_JDK11.sh](projects/test/gradle-plugin-agp-compat-test/test_JDK11.sh)中定义了被测试的AGP版本。
+* [check-build-test.yml](.github/workflows/check-build-test.yml) 中包含 AGP 兼容性测试。
+  当前自动化验证的兼容性基线为 AGP 9.x，对应的测试版本定义在 [test_JDK17.sh](projects/test/gradle-plugin-agp-compat-test/test_JDK17.sh)。
 
 ## 自己写的测试代码出错？
 

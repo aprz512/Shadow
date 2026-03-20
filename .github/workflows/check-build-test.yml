@@ -110,17 +110,9 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
-      - name: JDK17环境下AGP测试
+      - name: JDK17环境下AGP 9.x测试
         working-directory: projects/test/gradle-plugin-agp-compat-test
         run: ./test_JDK17.sh
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '11'
-          cache: 'gradle'
-      - name: JDK11环境下AGP测试
-        working-directory: projects/test/gradle-plugin-agp-compat-test
-        run: ./test_JDK11.sh
       - name: post-build
         uses: ./.github/actions/post-build
   test-sdk-jvm:

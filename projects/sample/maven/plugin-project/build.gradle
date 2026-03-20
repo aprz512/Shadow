@@ -4,7 +4,7 @@ buildscript {
     ext.shadow_version = '2.2.1'
     repositories {
         if (!System.getenv().containsKey("DISABLE_TENCENT_MAVEN_MIRROR")) {
-            maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
+            maven { url = 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
         } else {
             google()
             mavenCentral()
@@ -20,14 +20,14 @@ buildscript {
 allprojects {
     repositories {
         if (!System.getenv().containsKey("DISABLE_TENCENT_MAVEN_MIRROR")) {
-            maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
+            maven { url = 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
         } else {
             google()
             mavenCentral()
         }
         maven {
             name = "GitHubPackages"
-            url "https://maven.pkg.github.com/tencent/shadow"
+            url = "https://maven.pkg.github.com/tencent/shadow"
             //一个只读账号兼容Github Packages暂时不支持匿名下载
             //https://github.community/t/download-from-github-package-registry-without-authentication/14407
             credentials {

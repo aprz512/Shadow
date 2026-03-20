@@ -1,3 +1,5 @@
+import groovy.json.JsonSlurper
+
 /**
  * 这个脚本通过hook create*ApkListingFileRedirect任务，
  * 在它执行完成后，即生成了apk_ide_redirect_file，也应该生成了apk之后，
@@ -54,8 +56,8 @@ def copyApkAfterTask(t) {
         def redirectFile = t.getOutputs().getFiles().singleFile
         def listingFile = redirectFile.readLines().get(1).replaceFirst("listingFile=", "")
         def metadataFile = new File(redirectFile.parentFile, listingFile)
-        def metadata = new org.json.JSONObject(metadataFile.text)
-        def outputFile = metadata.getJSONArray("elements").getJSONObject(0).getString("outputFile")
+        def metadata = new JsonSlurper().parse(metadataFile)
+        def outputFile = metadata.elements[0].outputFile
         def apkFile = new File(metadataFile.parentFile, outputFile)
         def testRelativePath = redirectFile.relativePath(apkFile)
         def needCopy = !testRelativePath.matches("^(\\.\\.${File.separatorChar})+outputs${File.separatorChar}.+")

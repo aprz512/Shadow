@@ -85,8 +85,8 @@ def sourceJar(String name, String path) {
         description = "package ${name} source to jar"
         from "$path/src/main/java"
         from "$path/src/main/kotlin"
-        destinationDir = file("$path/build/libs/")
-        classifier = 'sources'
+        destinationDirectory.set(file("$path/build/libs/"))
+        archiveClassifier.set('sources')
     }
 }
 
@@ -105,9 +105,9 @@ task getPublicationVersion() {
 publishing {
     publications {
         gradlePlugin(MavenPublication) {
-            groupId coreGroupId
-            artifactId 'gradle-plugin'
-            version publicationVersion
+            groupId = coreGroupId
+            artifactId = 'gradle-plugin'
+            version = publicationVersion
             artifact("$corePath/gradle-plugin/build/libs/gradle-plugin.jar")
             artifact sourceJar("gradlePlugin", "$corePath/gradle-plugin")
 
@@ -130,9 +130,9 @@ publishing {
         // https://docs.gradle.org/current/userguide/plugins.html#sec:plugin_markers
         pluginMarker(MavenPublication) {
             def pluginId = 'com.tencent.shadow.plugin'
-            groupId pluginId
-            artifactId pluginId + '.gradle.plugin'
-            version publicationVersion
+            groupId = pluginId
+            artifactId = pluginId + '.gradle.plugin'
+            version = publicationVersion
 
             pom.withXml {
                 def root = asNode()
@@ -143,9 +143,9 @@ publishing {
             }
         }
         manifestParser(MavenPublication) {
-            groupId coreGroupId
-            artifactId 'manifest-parser'
-            version publicationVersion
+            groupId = coreGroupId
+            artifactId = 'manifest-parser'
+            version = publicationVersion
             artifact("$corePath/manifest-parser/build/libs/manifest-parser.jar")
             artifact sourceJar("manifestParser", "$corePath/manifest-parser")
 
@@ -161,9 +161,9 @@ publishing {
             }
         }
         common(MavenPublication) {
-            groupId coreGroupId
-            artifactId 'common'
-            version publicationVersion
+            groupId = coreGroupId
+            artifactId = 'common'
+            version = publicationVersion
             artifact("$corePath/common/build/libs/common.jar")
             artifact sourceJar("common", "$corePath/common")
 
@@ -175,9 +175,9 @@ publishing {
         }
 
         loadParameters(MavenPublication) {
-            groupId coreGroupId
-            artifactId 'load-parameters'
-            version publicationVersion
+            groupId = coreGroupId
+            artifactId = 'load-parameters'
+            version = publicationVersion
             artifact("$corePath/load-parameters/build/libs/load-parameters.jar")
             artifact sourceJar("loadParameters", "$corePath/load-parameters")
 
@@ -189,9 +189,9 @@ publishing {
         }
 
         coreLoader(MavenPublication) {
-            groupId coreGroupId
-            artifactId 'loader'
-            version publicationVersion
+            groupId = coreGroupId
+            artifactId = 'loader'
+            version = publicationVersion
             artifact("$corePath/loader/build/libs/loader.jar")
             artifact sourceJar("loader", "$corePath/loader")
 
@@ -209,9 +209,9 @@ publishing {
             }
         }
         coreManager(MavenPublication) {
-            groupId coreGroupId
-            artifactId 'manager'
-            version publicationVersion
+            groupId = coreGroupId
+            artifactId = 'manager'
+            version = publicationVersion
             artifact("$corePath/manager/build/libs/manager.jar")
             artifact sourceJar("manager", "$corePath/manager")
 
@@ -227,9 +227,9 @@ publishing {
             }
         }
         runtime(MavenPublication) {
-            groupId coreGroupId
-            artifactId 'runtime'
-            version publicationVersion
+            groupId = coreGroupId
+            artifactId = 'runtime'
+            version = publicationVersion
             artifact("$corePath/runtime/build/libs/runtime.jar")
             artifact sourceJar("runtime", "$corePath/runtime")
 
@@ -241,9 +241,9 @@ publishing {
             }
         }
         activityContainer(MavenPublication) {
-            groupId coreGroupId
-            artifactId 'activity-container'
-            version publicationVersion
+            groupId = coreGroupId
+            artifactId = 'activity-container'
+            version = publicationVersion
             artifact("$corePath/activity-container/build/libs/activity-container.jar")
             artifact sourceJar("activity-container", "$corePath/activity-container")
 
@@ -256,9 +256,9 @@ publishing {
         }
 
         transformKit(MavenPublication) {
-            groupId coreGroupId
-            artifactId 'transform-kit'
-            version publicationVersion
+            groupId = coreGroupId
+            artifactId = 'transform-kit'
+            version = publicationVersion
             artifact("$corePath/transform-kit/build/libs/transform-kit.jar")
             artifact sourceJar("transformKit", "$corePath/transform-kit")
 
@@ -274,9 +274,9 @@ publishing {
         }
 
         transformKitTest(MavenPublication) {
-            groupId coreGroupId
-            artifactId 'transform-kit-test'
-            version publicationVersion
+            groupId = coreGroupId
+            artifactId = 'transform-kit-test'
+            version = publicationVersion
             artifact("$corePath/transform-kit/build/libs/test-transform-kit.jar")
 
             pom.withXml {
@@ -290,9 +290,9 @@ publishing {
         }
 
         transform(MavenPublication) {
-            groupId coreGroupId
-            artifactId 'transform'
-            version publicationVersion
+            groupId = coreGroupId
+            artifactId = 'transform'
+            version = publicationVersion
             artifact("$corePath/transform/build/libs/transform.jar")
             artifact sourceJar("transform", "$corePath/transform")
 
@@ -306,9 +306,9 @@ publishing {
             }
         }
         dynamicApk(MavenPublication) {
-            groupId dynamicGroupId
-            artifactId 'apk'
-            version publicationVersion
+            groupId = dynamicGroupId
+            artifactId = 'apk'
+            version = publicationVersion
             artifact("$dynamicPath/dynamic-apk/build/libs/dynamic-apk.jar")
             artifact sourceJar("dynamicApk", "$dynamicPath/dynamic-apk")
 
@@ -322,9 +322,9 @@ publishing {
             }
         }
         dynamicHost(MavenPublication) {
-            groupId dynamicGroupId
-            artifactId 'host'
-            version publicationVersion
+            groupId = dynamicGroupId
+            artifactId = 'host'
+            version = publicationVersion
             artifact("$dynamicPath/dynamic-host/build/libs/dynamic-host.jar")
             artifact sourceJar("dynamicHost", "$dynamicPath/dynamic-host")
 
@@ -340,9 +340,9 @@ publishing {
             }
         }
         dynamicHostMultiLoaderExt(MavenPublication) {
-            groupId dynamicGroupId
-            artifactId 'host-multi-loader-ext'
-            version publicationVersion
+            groupId = dynamicGroupId
+            artifactId = 'host-multi-loader-ext'
+            version = publicationVersion
             artifact("$dynamicPath/dynamic-host-multi-loader-ext/build/libs/dynamic-host-multi-loader-ext.jar")
             artifact sourceJar("dynamicHostMultiLoaderExt", "$dynamicPath/dynamic-host-multi-loader-ext")
 
@@ -358,9 +358,9 @@ publishing {
         }
 
         dynamicLoader(MavenPublication) {
-            groupId dynamicGroupId
-            artifactId 'loader'
-            version publicationVersion
+            groupId = dynamicGroupId
+            artifactId = 'loader'
+            version = publicationVersion
             artifact("$dynamicPath/dynamic-loader/build/libs/dynamic-loader.jar")
             artifact sourceJar("dynamicLoader", "$dynamicPath/dynamic-loader")
 
@@ -371,9 +371,9 @@ publishing {
             }
         }
         dynamicLoaderImpl(MavenPublication) {
-            groupId dynamicGroupId
-            artifactId 'loader-impl'
-            version publicationVersion
+            groupId = dynamicGroupId
+            artifactId = 'loader-impl'
+            version = publicationVersion
             artifact("$dynamicPath/dynamic-loader-impl/build/libs/dynamic-loader-impl.jar")
             artifact sourceJar("dynamicLoaderImpl", "$dynamicPath/dynamic-loader-impl")
 
@@ -392,9 +392,9 @@ publishing {
             }
         }
         dynamicManager(MavenPublication) {
-            groupId dynamicGroupId
-            artifactId 'manager'
-            version publicationVersion
+            groupId = dynamicGroupId
+            artifactId = 'manager'
+            version = publicationVersion
             artifact("$dynamicPath/dynamic-manager/build/libs/dynamic-manager.jar")
             artifact sourceJar("dynamicManager", "$dynamicPath/dynamic-manager")
 
@@ -412,9 +412,9 @@ publishing {
         }
 
         dynamicManagerMultiLoaderExt(MavenPublication) {
-            groupId dynamicGroupId
-            artifactId 'manager-multi-loader-ext'
-            version publicationVersion
+            groupId = dynamicGroupId
+            artifactId = 'manager-multi-loader-ext'
+            version = publicationVersion
             artifact("$dynamicPath/dynamic-manager-multi-loader-ext/build/libs/dynamic-manager-multi-loader-ext.jar")
             artifact sourceJar("dynamicManagerMultiLoaderExt", "$dynamicPath/dynamic-manager-multi-loader-ext")
 
@@ -433,9 +433,9 @@ publishing {
         }
 
         coreUtils(MavenPublication) {
-            groupId coreGroupId
-            artifactId 'utils'
-            version publicationVersion
+            groupId = coreGroupId
+            artifactId = 'utils'
+            version = publicationVersion
             artifact("$corePath/utils/build/libs/utils.jar")
             artifact sourceJar("utils", "$corePath/utils")
 
@@ -463,7 +463,7 @@ publishing {
                         username = user
                         password = key
                     }
-                    url "https://maven.pkg.github.com/${user}/shadow"
+                    url = "https://maven.pkg.github.com/${user}/shadow"
                 }
 
                 useLocalCredential = true
@@ -477,7 +477,7 @@ publishing {
                     username = System.getenv("GITHUB_ACTOR")
                     password = System.getenv("GITHUB_TOKEN")
                 }
-                url "https://maven.pkg.github.com/" + "${System.env.GITHUB_REPOSITORY}".toLowerCase()
+                url = "https://maven.pkg.github.com/" + "${System.env.GITHUB_REPOSITORY}".toLowerCase()
             }
         } else {
             mavenLocal()

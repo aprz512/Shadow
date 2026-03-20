@@ -1,12 +1,13 @@
 apply plugin: 'com.android.library'
 
 android {
-    compileSdkVersion 29
+    compileSdk = 29
+    namespace = 'com.tencent.shadow.sample.introduce_shadow_lib'
 
 
     defaultConfig {
-        minSdkVersion 16
-        targetSdkVersion 28
+        minSdk = 16
+        targetSdk = 28
         versionCode 1
         versionName "1.0"
     }

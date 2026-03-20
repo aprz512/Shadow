@@ -11,77 +11,53 @@ includeTest()
 includeSample()
 includeSampleDynamicApk()
 
+def includeProjectIfPresent(String name, String projectPath) {
+    def dir = file(projectPath)
+    if (dir.exists() && dir.isDirectory()) {
+        include name
+        project(":${name}").projectDir = dir
+    }
+}
+
 def includeTest() {
-    include 'test-dynamic-host',
-            'test-dynamic-manager',
-            'test-dynamic-loader',
-            'test-dynamic-runtime',
-            'common-jar-settings-test',
-            'constant',
-            'custom-view',
-            'plugin-use-host-code-lib',
-            'test-manager',
-            'general-cases-lib',
-            'test-plugin-general-cases',
-            'general-cases-app',
-            'androidx-cases-lib',
-            'androidx-cases-app',
-            'test-plugin-androidx-cases',
-            'plugin-service-for-host',
-            'test-none-dynamic-host'
-    project(':test-dynamic-host').projectDir = file('projects/test/dynamic/host/test-dynamic-host')
-    project(':test-dynamic-manager').projectDir = file('projects/test/dynamic/manager/test-dynamic-manager')
-    project(':test-dynamic-loader').projectDir = file('projects/test/dynamic/plugin/test-dynamic-loader')
-    project(':test-dynamic-runtime').projectDir = file('projects/test/dynamic/plugin/test-dynamic-runtime')
-    project(':common-jar-settings-test').projectDir = file('projects/test/common-jar-settings-test')
-    project(':constant').projectDir = file('projects/test/lib/constant')
-    project(':custom-view').projectDir = file('projects/test/lib/custom-view')
-    project(':plugin-use-host-code-lib').projectDir = file('projects/test/lib/plugin-use-host-code-lib')
-    project(':test-manager').projectDir = file('projects/test/lib/test-manager')
-    project(':general-cases-lib').projectDir = file('projects/test/plugin/general-cases/general-cases-lib')
-    project(':androidx-cases-lib').projectDir = file('projects/test/plugin/androidx-cases/androidx-cases-lib')
-    project(':androidx-cases-app').projectDir = file('projects/test/plugin/androidx-cases/androidx-cases-app')
-    project(':test-plugin-androidx-cases').projectDir = file('projects/test/plugin/androidx-cases/test-plugin-androidx-cases')
-    project(':test-plugin-general-cases').projectDir = file('projects/test/plugin/general-cases/test-plugin-general-cases')
-    project(':general-cases-app').projectDir = file('projects/test/plugin/general-cases/general-cases-app')
-    project(':plugin-service-for-host').projectDir = file('projects/test/plugin/particular-cases/plugin-service-for-host')
-    project(':test-none-dynamic-host').projectDir = file('projects/test/none-dynamic/host/test-none-dynamic-host')
+    includeProjectIfPresent('test-dynamic-host', 'projects/test/dynamic/host/test-dynamic-host')
+    includeProjectIfPresent('test-dynamic-manager', 'projects/test/dynamic/manager/test-dynamic-manager')
+    includeProjectIfPresent('test-dynamic-loader', 'projects/test/dynamic/plugin/test-dynamic-loader')
+    includeProjectIfPresent('test-dynamic-runtime', 'projects/test/dynamic/plugin/test-dynamic-runtime')
+    includeProjectIfPresent('common-jar-settings-test', 'projects/test/common-jar-settings-test')
+    includeProjectIfPresent('constant', 'projects/test/lib/constant')
+    includeProjectIfPresent('custom-view', 'projects/test/lib/custom-view')
+    includeProjectIfPresent('plugin-use-host-code-lib', 'projects/test/lib/plugin-use-host-code-lib')
+    includeProjectIfPresent('test-manager', 'projects/test/lib/test-manager')
+    includeProjectIfPresent('general-cases-lib', 'projects/test/plugin/general-cases/general-cases-lib')
+    includeProjectIfPresent('test-plugin-general-cases', 'projects/test/plugin/general-cases/test-plugin-general-cases')
+    includeProjectIfPresent('general-cases-app', 'projects/test/plugin/general-cases/general-cases-app')
+    includeProjectIfPresent('androidx-cases-lib', 'projects/test/plugin/androidx-cases/androidx-cases-lib')
+    includeProjectIfPresent('androidx-cases-app', 'projects/test/plugin/androidx-cases/androidx-cases-app')
+    includeProjectIfPresent('test-plugin-androidx-cases', 'projects/test/plugin/androidx-cases/test-plugin-androidx-cases')
+    includeProjectIfPresent('plugin-service-for-host', 'projects/test/plugin/particular-cases/plugin-service-for-host')
+    includeProjectIfPresent('test-none-dynamic-host', 'projects/test/none-dynamic/host/test-none-dynamic-host')
 }
 
 def includeSample() {
-    include 'sample-constant',
-            'sample-host',
-            'sample-host-lib',
-            'sample-manager',
-            'sample-loader',
-            'sample-runtime',
-            'pinnedheaderexpandablelistview',
-            'slidingmenu',
-            'sample-base-lib',
-            'sample-base',
-            'sample-app'
-    project(':sample-constant').projectDir = file('projects/sample/source/sample-constant')
-    project(':sample-host').projectDir = file('projects/sample/source/sample-host')
-    project(':sample-host-lib').projectDir = file('projects/sample/source/sample-host-lib')
-    project(':sample-manager').projectDir = file('projects/sample/source/sample-manager')
-    project(':sample-loader').projectDir = file('projects/sample/source/sample-plugin/sample-loader')
-    project(':sample-runtime').projectDir = file('projects/sample/source/sample-plugin/sample-runtime')
-    project(':pinnedheaderexpandablelistview').projectDir = file('projects/sample/source/sample-plugin/third-party/pinnedheaderexpandablelistview')
-    project(':slidingmenu').projectDir = file('projects/sample/source/sample-plugin/third-party/slidingmenu')
-    project(':sample-base-lib').projectDir = file('projects/sample/source/sample-plugin/sample-base-lib')
-    project(':sample-base').projectDir = file('projects/sample/source/sample-plugin/sample-base')
-    project(':sample-app').projectDir = file('projects/sample/source/sample-plugin/sample-app')
+    includeProjectIfPresent('sample-constant', 'projects/sample/source/sample-constant')
+    includeProjectIfPresent('sample-host', 'projects/sample/source/sample-host')
+    includeProjectIfPresent('sample-host-lib', 'projects/sample/source/sample-host-lib')
+    includeProjectIfPresent('sample-manager', 'projects/sample/source/sample-manager')
+    includeProjectIfPresent('sample-loader', 'projects/sample/source/sample-plugin/sample-loader')
+    includeProjectIfPresent('sample-runtime', 'projects/sample/source/sample-plugin/sample-runtime')
+    includeProjectIfPresent('pinnedheaderexpandablelistview', 'projects/sample/source/sample-plugin/third-party/pinnedheaderexpandablelistview')
+    includeProjectIfPresent('slidingmenu', 'projects/sample/source/sample-plugin/third-party/slidingmenu')
+    includeProjectIfPresent('sample-base-lib', 'projects/sample/source/sample-plugin/sample-base-lib')
+    includeProjectIfPresent('sample-base', 'projects/sample/source/sample-plugin/sample-base')
+    includeProjectIfPresent('sample-app', 'projects/sample/source/sample-plugin/sample-app')
 }
 
 def includeSampleDynamicApk() {
-    include 'sample-hello-api',
-            'sample-hello-api-holder',
-            'sample-hello-apk',
-            'sample-hello-host'
-    project(':sample-hello-api').projectDir = file('projects/sample/dynamic-apk/sample-hello-api')
-    project(':sample-hello-api-holder').projectDir = file('projects/sample/dynamic-apk/sample-hello-api-holder')
-    project(':sample-hello-apk').projectDir = file('projects/sample/dynamic-apk/sample-hello-apk')
-    project(':sample-hello-host').projectDir = file('projects/sample/dynamic-apk/sample-hello-host')
+    includeProjectIfPresent('sample-hello-api', 'projects/sample/dynamic-apk/sample-hello-api')
+    includeProjectIfPresent('sample-hello-api-holder', 'projects/sample/dynamic-apk/sample-hello-api-holder')
+    includeProjectIfPresent('sample-hello-apk', 'projects/sample/dynamic-apk/sample-hello-apk')
+    includeProjectIfPresent('sample-hello-host', 'projects/sample/dynamic-apk/sample-hello-host')
 }
 
 /**

@@ -11,7 +11,7 @@ buildscript {
     }
     repositories {
         if (!System.getenv().containsKey("DISABLE_TENCENT_MAVEN_MIRROR")) {
-            maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
+            maven { url = 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
         } else {
             google()
             mavenCentral()
@@ -30,7 +30,7 @@ plugins {
 allprojects {
     repositories {
         if (!System.getenv().containsKey("DISABLE_TENCENT_MAVEN_MIRROR")) {
-            maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
+            maven { url = 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
         } else {
             google()
             mavenCentral()
@@ -41,19 +41,20 @@ allprojects {
 ext.disable_shadow_transform = true
 
 android {
-    compileSdkVersion COMPILE_SDK_VERSION
+    compileSdk = COMPILE_SDK_VERSION
+    namespace = 'app'
 
     defaultConfig {
         applicationId "com.tencent.shadow.test.gradle.case1"
-        minSdkVersion MIN_SDK_VERSION
-        targetSdkVersion TARGET_SDK_VERSION
+        minSdk = MIN_SDK_VERSION
+        targetSdk = TARGET_SDK_VERSION
         versionCode VERSION_CODE
         versionName VERSION_NAME
     }
 
     // 将插件的资源ID分区改为和宿主0x7F不同的值
-    aaptOptions {
-        additionalParameters "--package-id", "0x7E", "--allow-reserved-package-id"
+    androidResources {
+        additionalParameters.addAll(["--package-id", "0x7E", "--allow-reserved-package-id"])
     }
 }
 

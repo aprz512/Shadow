@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.tencent.shadow.sample.host">
+
+    <application
+        android:name="com.tencent.shadow.sample.plugin.app.lib.UseCaseApplication"
+        android:theme="@ref/0x01030006">
+
+        <activity
+            android:name="com.tencent.shadow.sample.plugin.app.lib.usecases.activity.TestActivityOrientation"
+            android:configChanges="orientation|screenSize|fontScale"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="stateVisible|adjustResize" />
+    </application>
+</manifest>

@@ -11,7 +11,7 @@ buildscript {
     }
     repositories {
         if (!System.getenv().containsKey("DISABLE_TENCENT_MAVEN_MIRROR")) {
-            maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
+            maven { url = 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
         } else {
             google()
             mavenCentral()
@@ -36,7 +36,7 @@ try {
 allprojects {
     repositories {
         if (!System.getenv().containsKey("DISABLE_TENCENT_MAVEN_MIRROR")) {
-            maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
+            maven { url = 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
         } else {
             google()
             mavenCentral()
@@ -45,41 +45,45 @@ allprojects {
 }
 
 ext.disable_shadow_transform = true
+def testAgpMajorVersion = (TestAGPVersion.tokenize('.').first() as Integer)
+if (testAgpMajorVersion < 9) {
+    throw new GradleException("AGP 8.x and earlier are no longer supported. Use AGP 9.x with JDK 17.")
+}
 
 android {
-    try {
-        namespace 'app'
-    } catch (Exception ignored) {
-        // AGP 8之前找不到namespace这个方法的，不用设置。
-    }
-
-    // 对于 3.4.0 以及以下版本，compileSdkVersion 不能为 SDK 33 。
-    // 因为 SDK 33 中的 android.car.jar 是由 JDK 11 编译的。而这些版本 AGP 中的 R8 不支持 JDK 11 。
-    if (TestAGPVersion.matches("3\\.[1234]\\.0")) {
-        compileSdkVersion 32
-    } else {
-        compileSdkVersion COMPILE_SDK_VERSION
-    }
+    namespace = 'app'
+    compileSdk = COMPILE_SDK_VERSION
 
     defaultConfig {
         applicationId "com.tencent.shadow.test.gradle.stub_project"
-        minSdkVersion MIN_SDK_VERSION
-        targetSdkVersion TARGET_SDK_VERSION
+        minSdk = MIN_SDK_VERSION
+        targetSdk = TARGET_SDK_VERSION
         versionCode VERSION_CODE
         versionName VERSION_NAME
     }
 
     buildTypes {
         debug {
-            minifyEnabled true
-            shrinkResources true
+            minifyEnabled = true
+            shrinkResources = true
 
             proguardFiles 'proguard-rules.pro'
         }
     }
 
-    // 测试插件项目存在自定义flavorDimensions
-    flavorDimensions(*flavorDimensionList, 'DimensionA', 'DimensionB')
+    // 测试插件项目存在自定义 flavorDimensions，同时保留 Shadow 插件预先注入的维度。
+    try {
+        def mergedFlavorDimensions = flavorDimensions.toList()
+        ['DimensionA', 'DimensionB'].each { dimensionName ->
+            if (!mergedFlavorDimensions.contains(dimensionName)) {
+                mergedFlavorDimensions.add(dimensionName)
+            }
+        }
+        flavorDimensions.clear()
+        flavorDimensions.addAll(mergedFlavorDimensions)
+    } catch (MissingPropertyException ignored) {
+        flavorDimensions 'DimensionA', 'DimensionB'
+    }
     productFlavors {
         A1 {
             dimension 'DimensionA'
@@ -91,16 +95,19 @@ android {
     }
 
     // 将插件的资源ID分区改为和宿主0x7F不同的值
-    aaptOptions {
-        additionalParameters "--package-id", "0x7E", "--allow-reserved-package-id"
+    androidResources {
+        additionalParameters.addAll(["--package-id", "0x7E", "--allow-reserved-package-id"])
     }
 }
+
+def fakeLoaderApk = layout.buildDirectory.file("outputs/apk/plugina1b2debug/loader.apk")
+def fakeRuntimeApk = layout.buildDirectory.file("outputs/apk/plugina1b2debug/runtime.apk")
 
 // 创建两个假的apk，用于验证打包流程（packagePlugin）
 afterEvaluate {
     tasks.getByPath(":stub-project:assemblePluginA1B2Debug").doLast {
-        File loader = project.file("build/outputs/apk/plugina1b2debug/loader.apk")
-        File runtime = project.file("build/outputs/apk/plugina1b2debug/runtime.apk")
+        File loader = fakeLoaderApk.get().asFile
+        File runtime = fakeRuntimeApk.get().asFile
         loader.parentFile.mkdirs()
         loader.createNewFile()
         runtime.createNewFile()
@@ -146,7 +153,7 @@ dependencies {
 
 repositories {
     if (!System.getenv().containsKey("DISABLE_TENCENT_MAVEN_MIRROR")) {
-        maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
+        maven { url = 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
     } else {
         google()
         mavenCentral()

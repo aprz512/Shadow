@@ -3,12 +3,13 @@ plugins {
 }
 
 android {
-    compileSdkVersion COMPILE_SDK_VERSION
+    compileSdk = COMPILE_SDK_VERSION
+    namespace = 'loader'
 
     defaultConfig {
         applicationId "com.tencent.shadow.test.gradle.case1"
-        minSdkVersion MIN_SDK_VERSION
-        targetSdkVersion TARGET_SDK_VERSION
+        minSdk = MIN_SDK_VERSION
+        targetSdk = TARGET_SDK_VERSION
         versionCode VERSION_CODE
         versionName VERSION_NAME
     }

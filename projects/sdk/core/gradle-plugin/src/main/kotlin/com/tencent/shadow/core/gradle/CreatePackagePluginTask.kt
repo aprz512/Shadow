@@ -32,7 +32,7 @@ internal fun createPackagePluginTask(project: Project, buildType: PluginBuildTyp
         project.logger.info("PackagePluginTask task run")
 
         //runtime apk file
-        val runtimeApkName: String = buildType.runtimeApkConfig.first
+        val runtimeApkName: String = buildType.runtimeApkConfig.getFirst()
         var runtimeFile: File? = null
         if (runtimeApkName.isNotEmpty()) {
             runtimeFile = ShadowPluginHelper.getRuntimeApkFile(project, buildType, false)
@@ -40,7 +40,7 @@ internal fun createPackagePluginTask(project: Project, buildType: PluginBuildTyp
 
 
         //loader apk file
-        val loaderApkName: String = buildType.loaderApkConfig.first
+        val loaderApkName: String = buildType.loaderApkConfig.getFirst()
         var loaderFile: File? = null
         if (loaderApkName.isNotEmpty()) {
             loaderFile = ShadowPluginHelper.getLoaderApkFile(project, buildType, false)
@@ -97,19 +97,19 @@ private fun createGenerateConfigTask(project: Project, buildType: PluginBuildTyp
     val extension = packagePlugin as PackagePluginExtension
 
     //runtime apk build task
-    val runtimeApkName = buildType.runtimeApkConfig.first
+    val runtimeApkName = buildType.runtimeApkConfig.getFirst()
     var runtimeTask = ""
     if (runtimeApkName.isNotEmpty()) {
-        runtimeTask = buildType.runtimeApkConfig.second
+        runtimeTask = buildType.runtimeApkConfig.getSecond()
         project.logger.info("runtime task = $runtimeTask")
     }
 
 
     //loader apk build task
-    val loaderApkName = buildType.loaderApkConfig.first
+    val loaderApkName = buildType.loaderApkConfig.getFirst()
     var loaderTask = ""
     if (loaderApkName.isNotEmpty()) {
-        loaderTask = buildType.loaderApkConfig.second
+        loaderTask = buildType.loaderApkConfig.getSecond()
         project.logger.info("loader task = $loaderTask")
     }
 

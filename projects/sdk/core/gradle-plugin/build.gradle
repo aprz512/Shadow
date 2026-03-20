@@ -2,6 +2,11 @@ apply plugin: 'java-gradle-plugin'
 
 apply plugin: 'kotlin'
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
 gradlePlugin {
     plugins {
         shadow {
@@ -24,12 +29,12 @@ dependencies {
 
 compileKotlin {
     kotlinOptions {
-        jvmTarget = "1.6"
+        jvmTarget = "11"
     }
 }
 
 compileTestKotlin {
     kotlinOptions {
-        jvmTarget = "1.6"
+        jvmTarget = "11"
     }
 }

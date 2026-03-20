@@ -15,11 +15,10 @@ buildscript {
     }
     repositories {
         if (!System.getenv().containsKey("DISABLE_TENCENT_MAVEN_MIRROR")) {
-            maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
-        } else {
-            google()
-            mavenCentral()
+            maven { url = 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
         }
+        google()
+        mavenCentral()
     }
     dependencies {
         classpath "com.android.tools.build:gradle:$build_gradle_version"
@@ -30,15 +29,14 @@ buildscript {
 apply from: '../../../buildScripts/gradle/common.gradle'
 
 allprojects {
-    group 'com.tencent.shadow.core'
+    group = 'com.tencent.shadow.core'
     buildscript {
         repositories {
             if (!System.getenv().containsKey("DISABLE_TENCENT_MAVEN_MIRROR")) {
-                maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
-            } else {
-                google()
-                mavenCentral()
+                maven { url = 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
             }
+            google()
+            mavenCentral()
         }
     }
 }

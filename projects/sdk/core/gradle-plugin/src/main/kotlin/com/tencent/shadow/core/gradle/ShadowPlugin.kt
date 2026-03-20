@@ -19,25 +19,25 @@
 package com.tencent.shadow.core.gradle
 
 import com.android.build.api.artifact.ScopedArtifact
+import com.android.build.api.artifact.SingleArtifact
+import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.dsl.CommonExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
+import com.android.build.api.variant.ApplicationVariant
 import com.android.build.api.variant.ScopedArtifacts
-import com.android.build.gradle.AppExtension
-import com.android.build.gradle.BaseExtension
-import com.android.build.gradle.api.ApplicationVariant
 import com.android.sdklib.AndroidVersion.VersionCodes
 import com.tencent.shadow.core.gradle.extensions.PackagePluginExtension
-import com.tencent.shadow.core.manifest_parser.createManifestValueParser
+import com.tencent.shadow.core.manifest_parser.collectManifestResourceReferences
 import com.tencent.shadow.core.manifest_parser.generatePluginManifest
-import com.tencent.shadow.core.transform.DeprecatedTransformWrapper
 import com.tencent.shadow.core.transform.GradleTransformWrapper
 import com.tencent.shadow.core.transform.ShadowTransform
 import com.tencent.shadow.core.transform_kit.AndroidClassPoolBuilder
 import com.tencent.shadow.core.transform_kit.ClassPoolBuilder
 import org.gradle.api.*
-import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.api.artifacts.ProjectDependency
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import java.io.File
-import java.net.URLClassLoader
-import java.util.zip.ZipFile
+import java.util.Properties
 
 class ShadowPlugin : Plugin<Project> {
 
@@ -46,14 +46,18 @@ class ShadowPlugin : Plugin<Project> {
     private lateinit var agpCompat: AGPCompat
 
     override fun apply(project: Project) {
-        agpCompat = buildAgpCompat(project)
-        val baseExtension = project.extensions.getByName("android") as BaseExtension
+        agpCompat = buildAgpCompat()
+        val androidExtension = project.extensions.getByType(ApplicationExtension::class.java)
+        val androidComponentsExtension =
+            project.extensions.getByType(ApplicationAndroidComponentsExtension::class.java)
 
         //在这里取到的contextClassLoader包含运行时库(classpath方式引入的)shadow-runtime
         contextClassLoader = Thread.currentThread().contextClassLoader
         val lateInitBuilder = object : ClassPoolBuilder {
             override fun build() = androidClassPoolBuilder.build()
         }
+
+        addFlavorForTransform(androidExtension)
 
         val shadowExtension = project.extensions.create("shadow", ShadowExtension::class.java)
         if (!project.hasProperty("disable_shadow_transform")) {
@@ -62,117 +66,46 @@ class ShadowPlugin : Plugin<Project> {
                 lateInitBuilder,
                 { shadowExtension.transformConfig.useHostContext }
             )
-            if (agpCompat.hasDeprecatedTransformApi()) {
-                baseExtension.registerTransform(
-                    DeprecatedTransformWrapper(
-                        project,
-                        shadowTransform
+            androidComponentsExtension.onVariants(
+                selector = androidComponentsExtension.selector()
+                    .withFlavor(
+                        ShadowTransform.DimensionName
+                                to ShadowTransform.ApplyShadowTransformFlavorName
                     )
+            ) { variant ->
+                val taskProvider = project.tasks.register(
+                    "${variant.name}ShadowTransform",
+                    GradleTransformWrapper::class.java,
+                    shadowTransform
                 )
-            } else {
-                val androidComponentsExtension =
-                    project.extensions.getByName("androidComponents") as ApplicationAndroidComponentsExtension
-                androidComponentsExtension.onVariants(
-                    selector = androidComponentsExtension.selector()
-                        .withFlavor(
-                            ShadowTransform.DimensionName
-                                    to ShadowTransform.ApplyShadowTransformFlavorName
-                        )
-                ) { variant ->
-                    val taskProvider = project.tasks.register(
-                        "${variant.name}ShadowTransform",
-                        GradleTransformWrapper::class.java,
-                        shadowTransform
+                variant.artifacts.forScope(ScopedArtifacts.Scope.ALL)
+                    .use<GradleTransformWrapper>(taskProvider)
+                    .toTransform(
+                        ScopedArtifact.CLASSES,
+                        GradleTransformWrapper::allJars,
+                        GradleTransformWrapper::allDirectories,
+                        GradleTransformWrapper::output
                     )
-                    variant.artifacts.forScope(ScopedArtifacts.Scope.ALL)
-                        .use<GradleTransformWrapper>(taskProvider)
-                        .toTransform(
-                            ScopedArtifact.CLASSES,
-                            GradleTransformWrapper::allJars,
-                            GradleTransformWrapper::allDirectories,
-                            GradleTransformWrapper::output
-                        )
-                }
             }
         }
-
-        addFlavorForTransform(baseExtension)
 
         project.extensions.create("packagePlugin", PackagePluginExtension::class.java, project)
 
+        androidComponentsExtension.onVariants(
+            androidComponentsExtension.selector().withFlavor(
+                ShadowTransform.DimensionName to ShadowTransform.ApplyShadowTransformFlavorName
+            )
+        ) { pluginVariant ->
+            checkAaptPackageIdConfig(androidExtension, pluginVariant)
+            createGeneratePluginManifestTasks(project, pluginVariant)
+        }
+
         project.afterEvaluate {
-            initAndroidClassPoolBuilder(baseExtension, project)
-
+            initAndroidClassPoolBuilder(androidExtension, project)
             createPackagePluginTasks(project)
-
-            addLocateApkanalyzerTask(project)
-
-            onEachPluginVariant(project) { pluginVariant ->
-                checkAaptPackageIdConfig(pluginVariant)
-
-                val appExtension: AppExtension =
-                    project.extensions.getByType(AppExtension::class.java)
-                if (agpCompat.isGeneratePluginManifestByMergedManifest(
-                        project,
-                        appExtension,
-                        pluginVariant
-                    )
-                ) {
-                    createGeneratePluginManifestTasksByMergedManifest(
-                        project,
-                        appExtension,
-                        pluginVariant
-                    )
-                } else {
-                    createGeneratePluginManifestTasks(project, appExtension, pluginVariant)
-                }
-            }
         }
 
         checkKotlinAndroidPluginForPluginManifestTask(project)
-    }
-
-    private fun addLocateApkanalyzerTask(project: Project) {
-        val appExtension: AppExtension =
-            project.extensions.getByType(AppExtension::class.java)
-        val sdkDirectory = appExtension.sdkDirectory
-        val outputFile = project.locateApkanalyzerResultPath()
-
-        project.tasks.register(locateApkanalyzerTaskName) {
-            it.inputs.property("sdkPath", sdkDirectory.path)
-            it.outputs.file(outputFile).withPropertyName("locateApkanalyzerResultPath")
-
-            it.doLast {
-                // 如果其他project的此任务执行过了，就不用再查找了
-                if (outputFile.exists() && File(outputFile.readText()).exists()) {
-                    return@doLast
-                }
-
-                // 找出apkanalyzer.jar.它是build tool的一部分，但位置随着版本有变化，所以这里用搜索文件确定位置
-                // 如果有多个版本，随机取第一个，因为只用decodeXml方法，预期不同版本没什么区别。
-                val apkanalyzerJarFile =
-                    try {
-                        sdkDirectory.walk().filter { file ->
-                            listOf(
-                                "apkanalyzer.jar",// 低版本build tools
-                                "apkanalyzer-classpath.jar",// 2020-06-05 cmdline-tools version 2.0
-                            ).any { it == file.name }
-                        }.first()
-                    } catch (e: NoSuchElementException) {
-                        // https://developer.android.com/studio/command-line/apkanalyzer
-                        // https://developer.android.com/studio/releases/sdk-tools
-                        // https://cs.android.com/android/platform/superproject/+/master:prebuilts/cmdline-tools/tools/bin/apkanalyzer;l=67;bpv=1;bpt=0
-                        throw Error(
-                            "找不到apkanalyzer.它来自：" +
-                                    "cmdline-tools." +
-                                    "如果高版本SDK也找不到这个文件，Shadow就需要更新了。"
-                        )
-                    }
-
-                outputFile.parentFile.mkdirs()
-                outputFile.writeText(apkanalyzerJarFile.absolutePath)
-            }
-        }
     }
 
     /**
@@ -198,190 +131,61 @@ class ShadowPlugin : Plugin<Project> {
             tasks.add(task)
         }
         if (tasks.isNotEmpty()) {
-            project.tasks.create("packageAllPlugin") {
+            project.tasks.register("packageAllPlugin") {
                 it.group = "plugin"
                 it.description = "打包所有插件"
-            }.dependsOn(tasks)
-        }
-    }
-
-    private fun onEachPluginVariant(project: Project, actions: (ApplicationVariant) -> Unit) {
-        val appExtension: AppExtension = project.extensions.getByType(AppExtension::class.java)
-        val pluginVariants = appExtension.applicationVariants.filter { variant ->
-            variant.productFlavors.any { flavor ->
-                flavor.dimension == ShadowTransform.DimensionName &&
-                        flavor.name == ShadowTransform.ApplyShadowTransformFlavorName
+                it.dependsOn(tasks)
             }
         }
-
-        checkPluginVariants(pluginVariants, appExtension, project.name)
-
-        pluginVariants.forEach(actions)
     }
 
     /**
      * 创建生成PluginManifest.java的任务
      */
-    @Suppress("PrivateApi")// for use BinaryXmlParser(apkanalyzer)
     private fun createGeneratePluginManifestTasks(
         project: Project,
-        appExtension: AppExtension,
         pluginVariant: ApplicationVariant
     ) {
-        val output = pluginVariant.outputs.first()
-
         val variantName = pluginVariant.name
-        val capitalizeVariantName = variantName.capitalize()
-
-        // 找出ap_文件
-        val processResourcesTask = agpCompat.getProcessResourcesTask(output)
-        val processedResFile = agpCompat.getProcessResourcesFile(processResourcesTask, variantName)
-
-        // decodeBinaryManifestTask输出的apkanalyzer manifest print结果文件
-        val decodeXml = File(
-            project.buildDir,
-            "intermediates/decodeBinaryManifest/$variantName/AndroidManifest.xml"
-        )
-
-        // 添加decodeXml任务
-        val decodeBinaryManifestTask =
-            project.tasks.register("decode${capitalizeVariantName}BinaryManifest") {
-                it.dependsOn(locateApkanalyzerTaskName)
-                it.dependsOn(processResourcesTask)
-                it.inputs.file(processedResFile)
-                it.outputs.file(decodeXml).withPropertyName("decodeXml")
-
-                it.doLast {
-                    val zipFile = ZipFile(processedResFile)
-                    val binaryXml = zipFile.getInputStream(
-                        zipFile.getEntry("AndroidManifest.xml")
-                    ).readBytes()
-
-                    val outputXmlBytes = decodeXml(project, binaryXml)
-                    decodeXml.parentFile.mkdirs()
-                    decodeXml.writeBytes(outputXmlBytes)
-                }
-            }
-
-
-        // 添加生成PluginManifest.java任务
-        val pluginManifestSourceDir =
-            File(project.buildDir, "generated/source/pluginManifest/$variantName")
-        val generatePluginManifestTask =
-            project.tasks.register("generate${capitalizeVariantName}PluginManifest") {
-                it.dependsOn(decodeBinaryManifestTask)
-                it.inputs.file(decodeXml)
-                it.outputs.dir(pluginManifestSourceDir).withPropertyName("pluginManifestSourceDir")
-
-                it.doLast {
-                    generatePluginManifest(
-                        decodeXml,
-                        pluginManifestSourceDir,
-                        "com.tencent.shadow.core.manifest_parser"
-                    )
-                }
-            }
-        val javacTask = project.tasks.getByName("compile${capitalizeVariantName}JavaWithJavac")
-        javacTask.dependsOn(generatePluginManifestTask)
-
-        // 把PluginManifest.java添加为源码
-        val relativePath =
-            project.projectDir.toPath().relativize(pluginManifestSourceDir.toPath()).toString()
-        (javacTask as JavaCompile).source(project.fileTree(relativePath))
-    }
-
-    private fun createGeneratePluginManifestTasksByMergedManifest(
-        project: Project,
-        appExtension: AppExtension,
-        pluginVariant: ApplicationVariant
-    ) {
-        val output = pluginVariant.outputs.first()
-
-        val variantName = pluginVariant.name
-        val capitalizeVariantName = variantName.capitalize()
-
-        // 添加生成PluginManifest.java任务
-        val pluginManifestSourceDir =
-            File(project.buildDir, "generated/source/pluginManifest/$variantName")
-
-        val javacTask = project.tasks.getByName("compile${capitalizeVariantName}JavaWithJavac")
-
-        val generatePluginManifestTask =
-            project.tasks.register("generate${capitalizeVariantName}PluginManifest") {
-                // 依赖 processManifest 任务以获取最终的 AndroidManifest.xml
-                val processManifestTask = agpCompat.getProcessManifestTask(output)
-                // 依赖 processResources 任务以获取 R.txt
-                val processResourcesTask = agpCompat.getProcessResourcesTask(output)
-                it.dependsOn(processManifestTask)
-                it.dependsOn(processResourcesTask)
-
-                it.outputs.dir(pluginManifestSourceDir).withPropertyName("pluginManifestSourceDir")
-
-                it.doLast {
-                    // 解析合并后的 AndroidManifest.xml + R.txt
-                    // 这种方案直接解析 XML 格式的 AndroidManifest.xml ，不再依赖 aapt2 产生的二进制产物
-                    val mergedManifest =
-                        agpCompat.getProcessManifestFile(project, pluginVariant, output)
-                    val rTxt = agpCompat.getRTxtFile(project, processResourcesTask, variantName)
-                    val manifestValueParser = createManifestValueParser(rTxt)
-                    generatePluginManifest(
-                        mergedManifest,
-                        pluginManifestSourceDir,
-                        "com.tencent.shadow.core.manifest_parser",
-                        manifestValueParser
-                    )
-                }
-            }
-        javacTask.dependsOn(generatePluginManifestTask)
-
-        // 把PluginManifest.java添加为源码
-        val relativePath =
-            project.projectDir.toPath().relativize(pluginManifestSourceDir.toPath()).toString()
-        (javacTask as JavaCompile).source(project.fileTree(relativePath))
-    }
-
-    /**
-     * 反射apkanalyzer中的BinaryXmlParser类的decodeXml方法
-     */
-    @Suppress("PrivateApi")
-    private fun decodeXml(project: Project, binaryXml: ByteArray): ByteArray {
-        val jarPath = File(project.locateApkanalyzerResultPath().readText())
-        val tempCL = URLClassLoader(arrayOf(jarPath.toURL()), contextClassLoader)
-        val binaryXmlParserClass =
-            tempCL.loadClass("com.android.tools.apk.analyzer.BinaryXmlParser")
-        return try {
-            decodeXmlMethodV1(binaryXmlParserClass, binaryXml)
-        } catch (ignored: Exception) {
-            decodeXmlMethodV2(binaryXmlParserClass, binaryXml)
+        val capitalizeVariantName = variantName.replaceFirstChar {
+            if (it.isLowerCase()) it.titlecase() else it.toString()
         }
-    }
+        val mergedManifest = pluginVariant.artifacts.get(SingleArtifact.MERGED_MANIFEST)
+        val runtimeSymbols = pluginVariant.artifacts.get(SingleArtifact.RUNTIME_SYMBOL_LIST)
 
-    private fun decodeXmlMethodV1(binaryXmlParserClass: Class<*>, binaryXml: ByteArray): ByteArray {
-        val decodeXmlMethod = binaryXmlParserClass.getDeclaredMethod(
-            "decodeXml",
-            String::class.java,
-            ByteArray::class.java
+        // 添加生成PluginManifest.java任务
+        val pluginManifestSourceDir = project.layout.buildDirectory.dir(
+            "generated/source/pluginManifest/$variantName"
         )
-        return decodeXmlMethod.invoke(
-            null,
-            "AndroidManifest.xml",
-            binaryXml
-        ) as ByteArray
-    }
+        val generatePluginManifestTask =
+            project.tasks.register("generate${capitalizeVariantName}PluginManifest") {
+                it.inputs.file(mergedManifest).withPropertyName("mergedManifest")
+                it.inputs.file(runtimeSymbols).withPropertyName("runtimeSymbols")
+                it.outputs.dir(pluginManifestSourceDir).withPropertyName("pluginManifestSourceDir")
 
-    /**
-     * 新版本代码中删掉了一个String参数，这个参数原来只用于log输出了
-     * https://cs.android.com/android-studio/platform/tools/base/+/6a81855c2fa102ae4532ad9a645e40177770a26a:apkparser/analyzer/src/main/java/com/android/tools/apk/analyzer/BinaryXmlParser.java;dlc=598c38100e4fb2b001385faea994fcb54cc515b1
-     */
-    private fun decodeXmlMethodV2(binaryXmlParserClass: Class<*>, binaryXml: ByteArray): ByteArray {
-        val decodeXmlMethod = binaryXmlParserClass.getDeclaredMethod(
-            "decodeXml",
-            ByteArray::class.java
-        )
-        return decodeXmlMethod.invoke(
-            null,
-            binaryXml
-        ) as ByteArray
+                it.doLast {
+                    val processedManifestFile = mergedManifest.get().asFile
+                    val resourcePackageName = pluginVariant.namespace.get()
+                    val manifestResourceReferences = collectManifestResourceReferences(processedManifestFile)
+                    val resourceReferencePackageLookup = resolveResourceReferencePackageLookup(
+                        project,
+                        variantName,
+                        resourcePackageName,
+                        manifestResourceReferences
+                    )
+                    generatePluginManifest(
+                        processedManifestFile,
+                        pluginManifestSourceDir.get().asFile,
+                        "com.tencent.shadow.core.manifest_parser",
+                        resourcePackageName,
+                        resourceReferencePackageLookup
+                    )
+                }
+            }
+        pluginVariant.configureJavaCompileTask { javacTask ->
+            javacTask.dependsOn(generatePluginManifestTask)
+            javacTask.source(pluginManifestSourceDir)
+        }
     }
 
     /**
@@ -392,91 +196,190 @@ class ShadowPlugin : Plugin<Project> {
      *
      * 此任务只是检查任务，对构建无影响。
      */
-    private fun checkAaptPackageIdConfig(pluginVariant: ApplicationVariant) {
-        val output = pluginVariant.outputs.first()
-        val minSdkVersion = agpCompat.getMinSdkVersion(pluginVariant)
-        val processResourcesTask = agpCompat.getProcessResourcesTask(output)
+    private fun checkAaptPackageIdConfig(
+        androidExtension: ApplicationExtension,
+        pluginVariant: ApplicationVariant
+    ) {
+        val minSdkVersion = pluginVariant.minSdk.apiLevel
+        val parameterList = agpCompat.getAaptAdditionalParameters(androidExtension)
+        var foundPackageIdParameter = false
+        parameterList.forEachIndexed { index, parameter ->
+            if (parameter == "--package-id" && parameterList.size >= index + 2) {
+                val packageIdSetting = parameterList[index + 1]
+                val packageIdValue = Integer.decode(packageIdSetting)
 
-        processResourcesTask.doFirst {
-            val parameterList = agpCompat.getAaptAdditionalParameters(processResourcesTask)
-            var foundPackageIdParameter = false
-            parameterList.forEachIndexed { index, parameter ->
-                if (parameter == "--package-id" && parameterList.size >= index + 2) {
-                    val packageIdSetting = parameterList[index + 1]
-                    val packageIdValue = Integer.decode(packageIdSetting)
-
-                    if (minSdkVersion > VersionCodes.O) {
-                        if (packageIdValue <= 0x7f) {
-                            throw Error("minSdkVersion大于26时--package-id必须大于0x7f")
-                        } else {
-                            foundPackageIdParameter = true
-                        }
+                if (minSdkVersion > VersionCodes.O) {
+                    if (packageIdValue <= 0x7f) {
+                        throw Error("minSdkVersion大于26时--package-id必须大于0x7f")
                     } else {
-                        if (packageIdValue >= 0x7f) {
-                            /*
-                            为了兼容minSDK小于26，且packageId大于0x7f时Android系统的bug，aapt对id进行了修改，
-                            导致Resources中记录的id值和layout中使用的id值不一致。
-                            但是minSDK小于26时可以使用--allow-reserved-package-id选项使用小于0x7f的值。
-                            https://android.googlesource.com/platform/frameworks/base/+/master/tools/aapt2/readme.md#version-2_14
-                            https://developer.android.com/studio/command-line/aapt2#link_options
-                             */
-                            throw Error(
-                                "minSdkVersion小于26时--package-id必须小于0x7f，" +
-                                        "同时使用--allow-reserved-package-id选项。"
-                            )
-                        } else {
-                            foundPackageIdParameter = true
-                        }
+                        foundPackageIdParameter = true
+                    }
+                } else {
+                    /*
+                    为了兼容minSDK小于26，且packageId大于0x7f时Android系统的bug，aapt对id进行了修改，
+                    导致Resources中记录的id值和layout中使用的id值不一致。
+                    但是minSDK小于26时可以使用--allow-reserved-package-id选项使用小于0x7f的值。
+                    https://android.googlesource.com/platform/frameworks/base/+/master/tools/aapt2/readme.md#version-2_14
+                    https://developer.android.com/studio/command-line/aapt2#link_options
+                     */
+                    if (packageIdValue >= 0x7f) {
+                        throw Error(
+                            "minSdkVersion小于26时--package-id必须小于0x7f，" +
+                                "同时使用--allow-reserved-package-id选项。"
+                        )
+                    } else {
+                        foundPackageIdParameter = true
                     }
                 }
             }
-            if (!foundPackageIdParameter) {
-                val example1 = "aaptOptions {\n" +
-                        "    additionalParameters \"--package-id\", \"0x80\"\n" +
-                        "}"
-                val example2 = "aaptOptions {\n" +
-                        "    additionalParameters \"--package-id\", \"0x7E\", \"--allow-reserved-package-id\"\n" +
-                        "}"
-                val example = if (minSdkVersion > VersionCodes.O) example1 else example2
-                throw Error(
-                    "插件需要利用aapt2的修改资源ID前缀的选项使其与宿主不同。\n" +
-                            "没有找到--package-id参数。示例：\n" + example
-                )
-            }
+        }
+        if (!foundPackageIdParameter) {
+            val example1 = "androidResources {\n" +
+                "    additionalParameters += [\"--package-id\", \"0x80\"]\n" +
+                "}"
+            val example2 = "androidResources {\n" +
+                "    additionalParameters += [\"--package-id\", \"0x7E\", \"--allow-reserved-package-id\"]\n" +
+                "}"
+            val example = if (minSdkVersion > VersionCodes.O) example1 else example2
+            throw Error(
+                "插件需要利用aapt2的修改资源ID前缀的选项使其与宿主不同。\n" +
+                    "没有找到--package-id参数。示例：\n" + example
+            )
         }
     }
 
-    private fun checkPluginVariants(
-        pluginVariants: List<ApplicationVariant>,
-        appExtension: AppExtension,
-        projectName: String
-    ) {
-        if (pluginVariants.isEmpty()) {
-            val errorMessage = StringBuilder()
-            errorMessage.appendLine("在${projectName}中找不到Shadow所添加的Dimension flavor")
-            errorMessage.appendLine("当前所有flavor打印如下：")
-            appExtension.applicationVariants.forEach { variant ->
-                errorMessage.appendLine("variant.name：${variant.name}")
-                variant.productFlavors.forEach { flavor ->
-                    errorMessage.appendLine(
-                        "flavor.name：${flavor.name} flavor.dimension：${flavor.dimension} "
-                    )
+    private fun resolveResourceReferencePackageLookup(
+        project: Project,
+        variantName: String,
+        resourcePackageName: String?,
+        manifestResourceReferences: Set<String>
+    ): Map<String, String> {
+        if (manifestResourceReferences.isEmpty()) {
+            return emptyMap()
+        }
+        val symbolOwners = linkedMapOf<String, LinkedHashSet<String>>()
+        collectCompileClasspathProjects(project, variantName).forEach { dependencyProject ->
+            findPackageAwareRFiles(dependencyProject).forEach { symbolFile ->
+                ResourceSymbolLookup.parsePackageAwareRFile(symbolFile).forEach { (reference, packageName) ->
+                    if (reference in manifestResourceReferences) {
+                        symbolOwners.getOrPut(reference) { linkedSetOf() }.add(packageName)
+                    }
                 }
             }
-            errorMessage.appendLine("提示：添加flavorDimension时，不要覆盖已有flavorDimension")
-            errorMessage.appendLine("示例：flavorDimensions(*flavorDimensionList, 'new')")
-            throw Error(errorMessage.toString())
+        }
+        collectCompileClasspathAars(project, variantName).forEach { aarFile ->
+            ResourceSymbolLookup.parseAarResourceSymbols(aarFile).forEach { (reference, packageName) ->
+                if (reference in manifestResourceReferences) {
+                    symbolOwners.getOrPut(reference) { linkedSetOf() }.add(packageName)
+                }
+            }
+        }
+
+        return symbolOwners.mapValues { (reference, owners) ->
+            ResourceSymbolLookup.selectResourceOwner(reference, owners, resourcePackageName)
         }
     }
 
-    private fun addFlavorForTransform(baseExtension: BaseExtension) {
-        agpCompat.addFlavorDimension(baseExtension, ShadowTransform.DimensionName)
+    private fun collectCompileClasspathProjects(
+        project: Project,
+        variantName: String
+    ): Set<Project> {
+        val result = linkedSetOf<Project>()
+
+        fun visit(target: Project) {
+            if (!result.add(target)) {
+                return
+            }
+            val compileClasspath = findCompileClasspathConfiguration(target, variantName) ?: return
+            compileClasspath.allDependencies
+                .withType(ProjectDependency::class.java)
+                .forEach { dependency ->
+                    val dependencyProject = project.rootProject.findProject(dependency.path)
+                        ?: throw IllegalStateException("找不到ProjectDependency: ${dependency.path}")
+                    visit(dependencyProject)
+                }
+        }
+
+        visit(project)
+        return result
+    }
+
+    private fun findCompileClasspathConfiguration(
+        project: Project,
+        variantName: String
+    ) = sequenceOf(
+        "${variantName}CompileClasspath",
+        "debugCompileClasspath",
+        "releaseCompileClasspath"
+    ).mapNotNull(project.configurations::findByName).firstOrNull()
+
+    private fun collectCompileClasspathAars(
+        project: Project,
+        variantName: String
+    ): Set<File> {
+        val gradleUserHomeDir = project.gradle.gradleUserHomeDir
+        val aarFiles = linkedSetOf<File>()
+        collectCompileClasspathProjects(project, variantName)
+            .mapNotNull { dependencyProject ->
+                findCompileClasspathConfiguration(dependencyProject, variantName)
+            }
+            .forEach { compileClasspath ->
+                compileClasspath.incoming.resolutionResult.allComponents.forEach { component ->
+                    val moduleId = component.id as? ModuleComponentIdentifier ?: return@forEach
+                    findCachedAarFile(
+                        gradleUserHomeDir,
+                        moduleId.group,
+                        moduleId.module,
+                        moduleId.version
+                    )?.let(aarFiles::add)
+                }
+            }
+        return aarFiles
+    }
+
+    private fun findCachedAarFile(
+        gradleUserHomeDir: File,
+        group: String,
+        module: String,
+        version: String
+    ): File? {
+        val artifactCacheDir = File(
+            gradleUserHomeDir,
+            "caches/modules-2/files-2.1/$group/$module/$version"
+        )
+        if (!artifactCacheDir.isDirectory) {
+            return null
+        }
+        return artifactCacheDir.walkTopDown()
+            .filter { candidate ->
+                candidate.isFile &&
+                        candidate.extension.equals("aar", ignoreCase = true) &&
+                        candidate.name.startsWith("$module-$version")
+            }
+            .firstOrNull()
+    }
+
+    private fun findPackageAwareRFiles(project: Project): List<File> {
+        val symbolRoot = project.layout.buildDirectory
+            .dir("intermediates/symbol_list_with_package_name")
+            .get()
+            .asFile
+        if (!symbolRoot.exists()) {
+            return emptyList()
+        }
+        return symbolRoot.walkTopDown()
+            .filter { it.isFile && it.name == "package-aware-r.txt" }
+            .toList()
+    }
+
+    private fun addFlavorForTransform(commonExtension: CommonExtension) {
+        agpCompat.addFlavorDimension(commonExtension, ShadowTransform.DimensionName)
         try {
-            baseExtension.productFlavors.create(ShadowTransform.NoShadowTransformFlavorName) {
+            commonExtension.productFlavors.create(ShadowTransform.NoShadowTransformFlavorName) {
                 it.dimension = ShadowTransform.DimensionName
                 agpCompat.setProductFlavorDefault(it, true)
             }
-            baseExtension.productFlavors.create(ShadowTransform.ApplyShadowTransformFlavorName) {
+            commonExtension.productFlavors.create(ShadowTransform.ApplyShadowTransformFlavorName) {
                 it.dimension = ShadowTransform.DimensionName
                 agpCompat.setProductFlavorDefault(it, false)
             }
@@ -486,13 +389,16 @@ class ShadowPlugin : Plugin<Project> {
     }
 
     private fun initAndroidClassPoolBuilder(
-        baseExtension: BaseExtension,
+        commonExtension: CommonExtension,
         project: Project
     ) {
-        val sdkDirectory = baseExtension.sdkDirectory
+        val sdkDirectory = resolveSdkDirectory(project)
         val compileSdkVersion =
-            baseExtension.compileSdkVersion ?: throw IllegalStateException("compileSdkVersion获取失败")
-        val androidJarPath = "platforms/${compileSdkVersion}/android.jar"
+            commonExtension.compileSdk?.toString()
+                ?: commonExtension.compileSdkPreview
+                ?: throw IllegalStateException("compileSdk获取失败")
+        val normalizedCompileSdkVersion = normalizeCompileSdkVersion(compileSdkVersion)
+        val androidJarPath = "platforms/${normalizedCompileSdkVersion}/android.jar"
         val androidJar = File(sdkDirectory, androidJarPath)
 
         androidClassPoolBuilder = AndroidClassPoolBuilder(project, contextClassLoader, androidJar)
@@ -510,11 +416,34 @@ class ShadowPlugin : Plugin<Project> {
     }
 
     companion object {
-        const val locateApkanalyzerTaskName = "locateApkanalyzer"
-        private fun Project.locateApkanalyzerResultPath() =
-            File(rootProject.buildDir, "shadow/ApkanalyzerPath.txt")
+        private fun resolveSdkDirectory(project: Project): File {
+            val propertiesFile = project.rootProject.file("local.properties")
+            if (propertiesFile.exists()) {
+                val properties = Properties()
+                propertiesFile.inputStream().use(properties::load)
+                val sdkDir = properties.getProperty("sdk.dir")
+                if (!sdkDir.isNullOrBlank()) {
+                    return File(sdkDir)
+                }
+            }
 
-        private fun buildAgpCompat(project: Project): AGPCompat {
+            val sdkDir = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
+            if (!sdkDir.isNullOrBlank()) {
+                return File(sdkDir)
+            }
+
+            throw IllegalStateException("SDK location not found. Please set sdk.dir or ANDROID_HOME/ANDROID_SDK_ROOT")
+        }
+
+        private fun normalizeCompileSdkVersion(compileSdkVersion: String): String {
+            return if (compileSdkVersion.startsWith("android-")) {
+                compileSdkVersion
+            } else {
+                "android-$compileSdkVersion"
+            }
+        }
+
+        private fun buildAgpCompat(): AGPCompat {
             return AGPCompatImpl()
         }
     }

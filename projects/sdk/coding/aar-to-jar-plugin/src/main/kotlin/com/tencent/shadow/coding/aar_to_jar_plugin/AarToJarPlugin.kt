@@ -18,18 +18,17 @@
 
 package com.tencent.shadow.coding.aar_to_jar_plugin
 
-import com.android.build.gradle.BaseExtension
+import com.android.build.api.dsl.CommonExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.Task
 import org.gradle.api.tasks.Copy
-import java.util.*
+import org.gradle.api.tasks.TaskProvider
 
 class AarToJarPlugin : Plugin<Project> {
 
     override fun apply(project: Project) {
         project.afterEvaluate {
-            val android = it.extensions.getByName("android") as BaseExtension
+            val android = it.extensions.getByType(CommonExtension::class.java)
             android.buildTypes.forEach { buildType ->
                 val createJarPackageTask = createJarPackageTask(project, buildType.name)
                 addJarConfiguration(project, buildType.name, createJarPackageTask)
@@ -37,28 +36,24 @@ class AarToJarPlugin : Plugin<Project> {
         }
     }
 
-    private fun createJarPackageTask(project: Project, buildType: String): Task {
-        val taskName = "jar${buildType.capitalize(Locale.getDefault())}Package"
-        return project.tasks.create(taskName, Copy::class.java) {
-            fun buildDirFile(relativePath: String) =
-                project.file(project.buildDir.path + relativePath)
+    private fun createJarPackageTask(project: Project, buildType: String): TaskProvider<Copy> {
+        val capitalizedBuildType = buildType.replaceFirstChar {
+            if (it.isLowerCase()) it.titlecase() else it.toString()
+        }
+        val taskName = "jar${capitalizedBuildType}Package"
+        val aarFileName = "${project.name}-${buildType}"
+        val aarFile = project.layout.buildDirectory.file("outputs/aar/${aarFileName}.aar")
+        val outputDir = project.layout.buildDirectory.dir("outputs/jar")
 
-            val aarFileName = "${project.name}-${buildType}"
-            val aarFile = buildDirFile("/outputs/aar/${aarFileName}.aar")
-            val outputDir = buildDirFile("/outputs/jar")
-
+        return project.tasks.register(taskName, Copy::class.java) {
             it.from(project.zipTree(aarFile))
             it.into(outputDir)
             it.include("classes.jar")
             it.rename("classes.jar", "${aarFileName}.jar")
             it.group = "build"
             it.description = "生成jar包"
-        }.dependsOn(
-            project.getTasksByName(
-                "assemble${buildType.capitalize(Locale.getDefault())}",
-                false
-            ).first()
-        )
+            it.dependsOn(project.tasks.named("assemble${capitalizedBuildType}"))
+        }
     }
 
     /**
@@ -67,11 +62,10 @@ class AarToJarPlugin : Plugin<Project> {
     private fun addJarConfiguration(
         project: Project,
         buildType: String,
-        createJarPackageTask: Task
+        createJarPackageTask: TaskProvider<Copy>
     ) {
         val configurationName = "jar-${buildType}"
-        val jarFile =
-            project.file(project.buildDir.path + "/outputs/jar/${project.name}-${buildType}.jar")
+        val jarFile = project.layout.buildDirectory.file("outputs/jar/${project.name}-${buildType}.jar")
         project.configurations.create(configurationName)
         project.artifacts.add(configurationName, jarFile) {
             it.builtBy(createJarPackageTask)

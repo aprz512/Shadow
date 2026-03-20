@@ -1,10 +1,11 @@
 apply plugin: 'com.android.library'
 
 android {
+    compileSdk = project.COMPILE_SDK_VERSION
+    namespace = 'com.tencent.shadow.core.manager_aar'
     defaultConfig {
-        compileSdkVersion project.COMPILE_SDK_VERSION
-        minSdkVersion project.MIN_SDK_VERSION
-        targetSdkVersion project.TARGET_SDK_VERSION
+        minSdk = project.MIN_SDK_VERSION
+        targetSdk = project.TARGET_SDK_VERSION
         testInstrumentationRunner "com.tencent.shadow.core.pluginmanager.CustomAndroidJUnitRunner"
     }
     testOptions {

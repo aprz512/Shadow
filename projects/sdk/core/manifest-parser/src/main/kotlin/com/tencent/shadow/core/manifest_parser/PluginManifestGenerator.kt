@@ -3,6 +3,7 @@ package com.tencent.shadow.core.manifest_parser
 import com.squareup.javapoet.*
 import com.tencent.shadow.core.runtime.PluginManifest
 import java.io.File
+import java.util.*
 import javax.lang.model.element.Modifier
 
 /**
@@ -20,15 +21,19 @@ class PluginManifestGenerator {
      * @param manifestMap   AndroidManifestReader#read的输出Map
      * @param outputDir     生成文件的输出目录
      * @param packageName   生成类的包名
-     * @param manifestValueParser 资源值解析器。用于将资源名称解析为资源 ID 值
      */
     fun generate(
         manifestMap: ManifestMap,
         outputDir: File,
         packageName: String,
-        manifestValueParser: ManifestValueParser? = null
+        resourcePackageName: String? = null,
+        resourceReferencePackageLookup: Map<String, String> = emptyMap()
     ) {
-        val pluginManifestBuilder = PluginManifestBuilder(manifestMap, manifestValueParser)
+        val pluginManifestBuilder = PluginManifestBuilder(
+            manifestMap,
+            resourcePackageName,
+            resourceReferencePackageLookup
+        )
         val pluginManifest = pluginManifestBuilder.build()
         JavaFile.builder(packageName, pluginManifest)
             .build()
@@ -38,7 +43,8 @@ class PluginManifestGenerator {
 
 private class PluginManifestBuilder(
     val manifestMap: ManifestMap,
-    val manifestValueParser: ManifestValueParser? = null
+    private val resourcePackageName: String?,
+    private val resourceReferencePackageLookup: Map<String, String>
 ) {
     val classBuilder: TypeSpec.Builder =
         TypeSpec.classBuilder("PluginManifest")
@@ -154,7 +160,11 @@ private class PluginManifestBuilder(
     }
 
     private fun buildGetterMethod(fieldSpec: FieldSpec): MethodSpec =
-        MethodSpec.methodBuilder("get${fieldSpec.name.capitalize()}")
+        MethodSpec.methodBuilder(
+            "get" + fieldSpec.name.replaceFirstChar {
+                if (it.isLowerCase()) it.titlecase() else it.toString()
+            }
+        )
             .addModifiers(
                 Modifier.PUBLIC,
                 Modifier.FINAL,
@@ -180,7 +190,7 @@ private class PluginManifestBuilder(
         manifestValue: Any,
     ): FieldSpec {
 
-        val resIdLiteral = themeStringToResId(manifestValue, manifestValueParser)
+        val resIdLiteral = themeStringToResId(manifestValue)
         return privateStaticFinalIntFieldBuilder(fieldName)
             .initializer(
                 CodeBlock.of("$1L", resIdLiteral)
@@ -204,17 +214,17 @@ private class PluginManifestBuilder(
         }
 
         val themeLiteral = makeResIdLiteral(AndroidManifestKeys.theme) {
-            themeStringToResId(it, manifestValueParser)
+            themeStringToResId(it)
         }
         val configChangesLiteral = makeResIdLiteral(AndroidManifestKeys.configChanges) {
-            parseConfigChanges(it)
+            activityConfigChangesStringToLiteral(it)
         }
         val softInputModeLiteral = makeResIdLiteral(AndroidManifestKeys.windowSoftInputMode) {
-            parseSoftInputMode(it)
+            windowSoftInputModeStringToLiteral(it)
         }
 
         val screenOrientation = makeResIdLiteral(AndroidManifestKeys.screenOrientation, "-1") {
-            parseScreenOrientation(it)
+            screenOrientationStringToLiteral(it)
         }
 
         return "new com.tencent.shadow.core.runtime.PluginManifest" +
@@ -264,6 +274,32 @@ private class PluginManifestBuilder(
                 ".ProviderInfo(\"${componentMap[AndroidManifestKeys.name]}\", $authoritiesLiteral,$grantUriPermissions)"
     }
 
+    private fun themeStringToResId(manifestValue: Any): String {
+        val formatValue = manifestValue as String
+        return when {
+            formatValue.startsWith("@ref/") -> formatValue.removePrefix("@ref/")
+            formatValue.startsWith("@0x") -> formatValue.removePrefix("@")
+            formatValue.startsWith("@android:") ->
+                resourceReferenceToCode(formatValue.removePrefix("@android:"), "android.R")
+            formatValue.startsWith("@") ->
+                localResourceReferenceToCode(formatValue.removePrefix("@"))
+            else ->
+                throw TODO("不支持其他格式: $formatValue")
+        }
+    }
+
+    private fun localResourceReferenceToCode(reference: String): String {
+        val rClassName = localResourceClassName(reference)
+        return resourceReferenceToCode(reference, rClassName)
+    }
+
+    private fun localResourceClassName(reference: String): String {
+        val packageName = resourceReferencePackageLookup[normalizeResourceReference(reference)]
+            ?: resourceReferencePackageLookup[reference]
+            ?: resourcePackageName
+        return packageName?.takeIf(String::isNotBlank)?.let { "$it.R" } ?: "R"
+    }
+
     companion object {
         fun privateStaticFinalFieldBuilder(type: TypeName, fieldName: String) = FieldSpec.builder(
             type,
@@ -287,94 +323,129 @@ private class PluginManifestBuilder(
 
         fun nullCodeBlock() = CodeBlock.of("null")!!
 
-        fun themeStringToResId(
-            manifestValue: Any,
-            manifestValueParser: ManifestValueParser? = null
+        private val activityConfigChangesValues = mapOf(
+            "mcc" to 0x0001,
+            "mnc" to 0x0002,
+            "locale" to 0x0004,
+            "touchscreen" to 0x0008,
+            "keyboard" to 0x0010,
+            "keyboardHidden" to 0x0020,
+            "navigation" to 0x0040,
+            "orientation" to 0x0080,
+            "screenLayout" to 0x0100,
+            "uiMode" to 0x0200,
+            "screenSize" to 0x0400,
+            "smallestScreenSize" to 0x0800,
+            "density" to 0x1000,
+            "layoutDirection" to 0x2000,
+            "colorMode" to 0x4000,
+            "grammaticalGender" to 0x8000,
+            "fontWeightAdjustment" to 0x10000000,
+            "fontScale" to 0x40000000,
+        )
+
+        private val windowSoftInputModeValues = mapOf(
+            "stateUnspecified" to 0x00,
+            "stateUnchanged" to 0x01,
+            "stateHidden" to 0x02,
+            "stateAlwaysHidden" to 0x03,
+            "stateVisible" to 0x04,
+            "stateAlwaysVisible" to 0x05,
+            "adjustUnspecified" to 0x00,
+            "adjustResize" to 0x10,
+            "adjustPan" to 0x20,
+            "adjustNothing" to 0x30,
+            "isForwardNavigation" to 0x100,
+        )
+
+        private val screenOrientationValues = mapOf(
+            "unspecified" to -1,
+            "landscape" to 0,
+            "portrait" to 1,
+            "user" to 2,
+            "behind" to 3,
+            "sensor" to 4,
+            "nosensor" to 5,
+            "sensorLandscape" to 6,
+            "sensorPortrait" to 7,
+            "reverseLandscape" to 8,
+            "reversePortrait" to 9,
+            "fullSensor" to 10,
+            "userLandscape" to 11,
+            "userPortrait" to 12,
+            "fullUser" to 13,
+            "locked" to 14,
+        )
+
+        private fun activityConfigChangesStringToLiteral(value: String): String =
+            manifestValueToLiteral(
+                attributeName = AndroidManifestKeys.configChanges,
+                value = value,
+                symbolicValues = activityConfigChangesValues,
+                allowFlagCombination = true
+            )
+
+        private fun windowSoftInputModeStringToLiteral(value: String): String =
+            manifestValueToLiteral(
+                attributeName = AndroidManifestKeys.windowSoftInputMode,
+                value = value,
+                symbolicValues = windowSoftInputModeValues,
+                allowFlagCombination = true
+            )
+
+        private fun screenOrientationStringToLiteral(value: String): String =
+            manifestValueToLiteral(
+                attributeName = AndroidManifestKeys.screenOrientation,
+                value = value,
+                symbolicValues = screenOrientationValues,
+                allowFlagCombination = false
+            )
+
+        private fun manifestValueToLiteral(
+            attributeName: String,
+            value: String,
+            symbolicValues: Map<String, Int>,
+            allowFlagCombination: Boolean
         ): String {
-            val formatValue = manifestValue as String // for example: @ref/0x7e0b009e
-            if (formatValue.startsWith("@ref/")) {
-                return formatValue.removePrefix("@ref/")
-            } else if (formatValue.startsWith("@")) {
-                // 对于使用 merged manifest 的场景，manifestValueParser 不会为 null 。
-                // 对于使用 ap_ 文件中的 AndroidManifest.xml 的场景，不会出现以 @ 打头却不是 @ref 的情况。
-                if (manifestValueParser != null) {
-                    // @style/Theme.AppCompat --> id 值
-                    return manifestValueParser.invoke(formatValue)
-                }
+            if (isNumericLiteral(value)) {
+                return value
             }
-            // 其余格式：https://cs.android.com/android-studio/platform/tools/base/+/mirror-goog-studio-main:apkparser/analyzer/src/main/java/com/android/tools/apk/analyzer/BinaryXmlParser.java;l=193
-            throw TODO("不支持其他格式: $formatValue")
+
+            val segments = value.split('|').map(String::trim).filter(String::isNotEmpty)
+            if (segments.isEmpty()) {
+                throw IllegalArgumentException("$attributeName 为空，不支持生成")
+            }
+            if (!allowFlagCombination && segments.size != 1) {
+                throw IllegalArgumentException("$attributeName 不支持组合值: $value")
+            }
+
+            val resolvedValue = segments.fold(0) { acc, segment ->
+                val flagValue = symbolicValues[segment] ?: throw IllegalArgumentException(
+                    "$attributeName 存在未知取值: $segment (原始值: $value)"
+                )
+                acc or flagValue
+            }
+            return intLiteral(resolvedValue)
         }
 
-        fun parseConfigChanges(value: String): String {
-            if (value.startsWith("0x") || value.toIntOrNull() != null) return value
-            return value.split("|").joinToString("|") {
-                val constant = when (it) {
-                    "mcc" -> "CONFIG_MCC"
-                    "mnc" -> "CONFIG_MNC"
-                    "locale" -> "CONFIG_LOCALE"
-                    "touchscreen" -> "CONFIG_TOUCHSCREEN"
-                    "keyboard" -> "CONFIG_KEYBOARD"
-                    "keyboardHidden" -> "CONFIG_KEYBOARD_HIDDEN"
-                    "navigation" -> "CONFIG_NAVIGATION"
-                    "orientation" -> "CONFIG_ORIENTATION"
-                    "screenLayout" -> "CONFIG_SCREEN_LAYOUT"
-                    "uiMode" -> "CONFIG_UI_MODE"
-                    "screenSize" -> "CONFIG_SCREEN_SIZE"
-                    "smallestScreenSize" -> "CONFIG_SMALLEST_SCREEN_SIZE"
-                    "density" -> "CONFIG_DENSITY"
-                    "layoutDirection" -> "CONFIG_LAYOUT_DIRECTION"
-                    "fontScale" -> "CONFIG_FONT_SCALE"
-                    "colorMode" -> "CONFIG_COLOR_MODE" // Added in API 26
-                    else -> throw IllegalArgumentException("Unknown configChanges: $it")
-                }
-                "android.content.pm.ActivityInfo.$constant"
-            }
-        }
+        private fun isNumericLiteral(value: String): Boolean =
+            value.matches(Regex("-?(0x[0-9a-fA-F]+|\\d+)"))
 
-        fun parseSoftInputMode(value: String): String {
-            if (value.startsWith("0x") || value.toIntOrNull() != null) return value
-            return value.split("|").joinToString("|") {
-                val constant = when (it) {
-                    "stateUnspecified" -> "SOFT_INPUT_STATE_UNSPECIFIED"
-                    "stateUnchanged" -> "SOFT_INPUT_STATE_UNCHANGED"
-                    "stateHidden" -> "SOFT_INPUT_STATE_HIDDEN"
-                    "stateAlwaysHidden" -> "SOFT_INPUT_STATE_ALWAYS_HIDDEN"
-                    "stateVisible" -> "SOFT_INPUT_STATE_VISIBLE"
-                    "stateAlwaysVisible" -> "SOFT_INPUT_STATE_ALWAYS_VISIBLE"
-                    "adjustUnspecified" -> "SOFT_INPUT_ADJUST_UNSPECIFIED"
-                    "adjustResize" -> "SOFT_INPUT_ADJUST_RESIZE"
-                    "adjustPan" -> "SOFT_INPUT_ADJUST_PAN"
-                    "adjustNothing" -> "SOFT_INPUT_ADJUST_NOTHING"
-                    "isForwardNavigation" -> "SOFT_INPUT_IS_FORWARD_NAVIGATION"
-                    else -> throw IllegalArgumentException("Unknown windowSoftInputMode: $it")
-                }
-                "android.view.WindowManager.LayoutParams.$constant"
+        private fun intLiteral(value: Int): String =
+            if (value < 0) {
+                value.toString()
+            } else {
+                "0x" + Integer.toHexString(value).uppercase(Locale.ROOT)
             }
-        }
 
-        fun parseScreenOrientation(value: String): String {
-            if (value.startsWith("0x") || value.toIntOrNull() != null) return value
-            val constant = when (value) {
-                "unspecified" -> "SCREEN_ORIENTATION_UNSPECIFIED"
-                "landscape" -> "SCREEN_ORIENTATION_LANDSCAPE"
-                "portrait" -> "SCREEN_ORIENTATION_PORTRAIT"
-                "user" -> "SCREEN_ORIENTATION_USER"
-                "behind" -> "SCREEN_ORIENTATION_BEHIND"
-                "sensor" -> "SCREEN_ORIENTATION_SENSOR"
-                "nosensor" -> "SCREEN_ORIENTATION_NOSENSOR"
-                "sensorLandscape" -> "SCREEN_ORIENTATION_SENSOR_LANDSCAPE"
-                "sensorPortrait" -> "SCREEN_ORIENTATION_SENSOR_PORTRAIT"
-                "reverseLandscape" -> "SCREEN_ORIENTATION_REVERSE_LANDSCAPE"
-                "reversePortrait" -> "SCREEN_ORIENTATION_REVERSE_PORTRAIT"
-                "fullSensor" -> "SCREEN_ORIENTATION_FULL_SENSOR"
-                "userLandscape" -> "SCREEN_ORIENTATION_USER_LANDSCAPE"
-                "userPortrait" -> "SCREEN_ORIENTATION_USER_PORTRAIT"
-                "fullUser" -> "SCREEN_ORIENTATION_FULL_USER"
-                "locked" -> "SCREEN_ORIENTATION_LOCKED"
-                else -> throw IllegalArgumentException("Unknown screenOrientation: $value")
+        private fun resourceReferenceToCode(reference: String, rClassName: String): String {
+            val parts = normalizeResourceReference(reference).split("/", limit = 2)
+            if (parts.size != 2) {
+                throw TODO("不支持其他资源引用格式: @$reference")
             }
-            return "android.content.pm.ActivityInfo.$constant"
+            val type = parts[0]
+            val entryName = parts[1]
+            return "$rClassName.$type.$entryName"
         }
     }
 }

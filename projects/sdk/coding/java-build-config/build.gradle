@@ -9,11 +9,10 @@ apply plugin: 'java'
 buildscript {
     repositories {
         if (!System.getenv().containsKey("DISABLE_TENCENT_MAVEN_MIRROR")) {
-            maven { url 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
-        } else {
-            google()
-            mavenCentral()
+            maven { url = 'https://mirrors.tencent.com/nexus/repository/maven-public/' }
         }
+        google()
+        mavenCentral()
     }
     dependencies {
         classpath "com.squareup:javapoet:$javapoet_version"
@@ -30,20 +29,22 @@ java {
 }
 
 def generateCode = tasks.register('generateCode') {
-    inputs.property('VERSION_NAME', project.VERSION_NAME)
-    outputs.dir(layout.buildDirectory.dir('generateCode'))
+    def outputDir = layout.buildDirectory.dir('generateCode')
+    def versionName = project.VERSION_NAME
+    inputs.property('VERSION_NAME', versionName)
+    outputs.dir(outputDir)
             .withPropertyName('outputDir')
     doLast {
         def versionNameField
                 = FieldSpec.builder(String, "VERSION_NAME", Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
-                .initializer('$S', project.VERSION_NAME).build()
+                .initializer('$S', versionName).build()
 
         def buildConfigClass = TypeSpec.classBuilder("BuildConfig")
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .addField(versionNameField).build()
 
         JavaFile.builder("com.tencent.shadow.coding.java_build_config", buildConfigClass)
-                .build().writeTo(new File(project.getBuildDir(), 'generateCode'))
+                .build().writeTo(outputDir.get().asFile)
     }
 }
 
