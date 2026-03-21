@@ -38,9 +38,9 @@ internal class AGPCompatImpl : AGPCompat {
     override fun setProductFlavorDefault(productFlavor: Any, isDefault: Boolean) {
         val setter = productFlavor.javaClass.methods.firstOrNull { method ->
             method.name in setOf("setDefault", "setIsDefault") &&
-                method.parameterTypes.size == 1 &&
-                (method.parameterTypes[0] == java.lang.Boolean.TYPE ||
-                    method.parameterTypes[0] == java.lang.Boolean::class.java)
+                    method.parameterTypes.size == 1 &&
+                    (method.parameterTypes[0] == java.lang.Boolean.TYPE ||
+                            method.parameterTypes[0] == java.lang.Boolean::class.java)
         } ?: return
 
         try {

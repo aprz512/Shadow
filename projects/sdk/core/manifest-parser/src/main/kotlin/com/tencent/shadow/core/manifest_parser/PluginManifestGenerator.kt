@@ -281,8 +281,10 @@ private class PluginManifestBuilder(
             formatValue.startsWith("@0x") -> formatValue.removePrefix("@")
             formatValue.startsWith("@android:") ->
                 resourceReferenceToCode(formatValue.removePrefix("@android:"), "android.R")
+
             formatValue.startsWith("@") ->
                 localResourceReferenceToCode(formatValue.removePrefix("@"))
+
             else ->
                 throw TODO("不支持其他格式: $formatValue")
         }

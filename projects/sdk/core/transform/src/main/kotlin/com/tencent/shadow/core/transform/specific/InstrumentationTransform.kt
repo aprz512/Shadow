@@ -24,6 +24,7 @@ import com.tencent.shadow.core.transform_kit.TransformStep
 import javassist.CodeConverter
 import javassist.CtClass
 import javassist.CtMethod
+import javassist.CtNewMethod
 
 class InstrumentationTransform : SpecificTransform() {
     companion object {
@@ -39,9 +40,22 @@ class InstrumentationTransform : SpecificTransform() {
             shadowInstrumentation.getDeclaredMethods("newShadowApplication")
 
         val newShadowActivityMethod = shadowInstrumentation.getDeclaredMethod("newShadowActivity")
+        val newApplicationCallTargets = newShadowApplicationMethods.map {
+            CtNewMethod.copy(it, shadowInstrumentation, null).apply {
+                name = "newApplication"
+            }
+        }
+        val newActivityCallTarget = CtNewMethod.copy(
+            newShadowActivityMethod,
+            shadowInstrumentation,
+            null
+        ).apply {
+            name = "newActivity"
+        }
 
         newStep(object : TransformStep {
-            override fun filter(allInputClass: Set<CtClass>) = allInputClass
+            override fun filter(allInputClass: Set<CtClass>) =
+                filterRefClasses(allInputClass, listOf(AndroidInstrumentationClassname))
 
             override fun transform(ctClass: CtClass) {
                 ReplaceClassName.replaceClassName(
@@ -52,7 +66,10 @@ class InstrumentationTransform : SpecificTransform() {
             }
         })
         newStep(object : TransformStep {
-            override fun filter(allInputClass: Set<CtClass>) = allInputClass
+            override fun filter(allInputClass: Set<CtClass>) = filterMethodCallClasses(
+                allInputClass,
+                newApplicationCallTargets + newActivityCallTarget
+            )
 
             override fun transform(ctClass: CtClass) {
                 ctClass.defrost()

@@ -18,12 +18,26 @@
 
 package android.app;
 
+import android.content.Context;
 import android.content.Intent;
+
+import com.tencent.shadow.core.runtime.ShadowActivity;
+import com.tencent.shadow.core.runtime.ShadowApplication;
 
 public class Instrumentation {
 
     public static class ActivityResult {
         public ActivityResult(int code, Intent intent) {
         }
+    }
+
+    public ShadowApplication newApplication(ClassLoader cl, String className, Context context)
+            throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+        return null;
+    }
+
+    public ShadowActivity newActivity(ClassLoader cl, String className, Intent intent)
+            throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+        return null;
     }
 }

@@ -26,7 +26,8 @@ import org.gradle.api.Project
 class ShadowTransform(
     project: Project,
     classPoolBuilder: ClassPoolBuilder,
-    private val useHostContext: () -> Array<String>
+    private val useHostContext: () -> Array<String>,
+    private val skipTransformPackagesProvider: () -> Array<String>
 ) : AbstractTransform(project, classPoolBuilder) {
     companion object {
         const val SelfClassNamePlaceholder =
@@ -41,9 +42,13 @@ class ShadowTransform(
     override val mTransformManager: AbstractTransformManager
         get() = _mTransformManager
 
+    override fun skipTransformPackages(): Array<String> = skipTransformPackagesProvider()
+
     override fun beforeTransform() {
         super.beforeTransform()
-        _mTransformManager = TransformManager(classPool, useHostContext)
+        _mTransformManager = TransformManager(classPool, useHostContext) { ctClass ->
+            !shouldSkipTransform(ctClass.name)
+        }
         classPool.makeInterface(SelfClassNamePlaceholder)
     }
 

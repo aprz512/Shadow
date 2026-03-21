@@ -141,12 +141,28 @@ class FragmentSupportTransform : SpecificTransform() {
                 arrayOf(androidFragment, androidIntent, CtClass.intType, androidBundle)
             )
         )
+        val fragmentMethods = listOf(
+            getActivityMethod,
+            getHostMethod,
+            startActivityMethod1,
+            startActivityMethod2,
+            startActivityForResultMethod1,
+            startActivityForResultMethod2
+        )
 
         /**
          * 调用插件Fragment的Activity相关方法时将ContainerActivity转换成ShadowActivity
          */
         newStep(object : TransformStep {
-            override fun filter(allInputClass: Set<CtClass>) = allInputClass
+            override fun filter(allInputClass: Set<CtClass>) =
+                allInputClass.filter { ctClass ->
+                    fragmentMethods.any { matchMethodCallInClass(it, ctClass) }
+                            || matchMethodCallInClass(
+                        getContextMethod,
+                        ctClass,
+                        includeInvokeSpecial = false
+                    )
+                }.toSet()
 
             override fun transform(ctClass: CtClass) {
                 ctClass.defrost()

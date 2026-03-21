@@ -17,7 +17,7 @@ public class ShadowInstrumentation {
         return null;
     }
 
-    public ShadowApplication newApplication(ClassLoader cl, String className, Context context)
+    public ShadowApplication newShadowApplication(ClassLoader cl, String className, Context context)
             throws InstantiationException, IllegalAccessException, ClassNotFoundException {
         return null;
     }

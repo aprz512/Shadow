@@ -61,7 +61,11 @@ abstract class SpecificTransform {
     /**
      * 查找目标class是否存在目标method的调用
      */
-    fun matchMethodCallInClass(ctMethod: CtMethod, clazz: CtClass): Boolean {
+    fun matchMethodCallInClass(
+        ctMethod: CtMethod,
+        clazz: CtClass,
+        includeInvokeSpecial: Boolean = true
+    ): Boolean {
         for (methodInfo in clazz.classFile2.methods) {
             methodInfo as MethodInfo
             val codeAttr: CodeAttribute? = methodInfo.codeAttribute
@@ -71,8 +75,10 @@ abstract class SpecificTransform {
                 while (iterator.hasNext()) {
                     val pos = iterator.next()
                     val c = iterator.byteAt(pos)
-                    if (c == Opcode.INVOKEINTERFACE || c == Opcode.INVOKESPECIAL
-                        || c == Opcode.INVOKESTATIC || c == Opcode.INVOKEVIRTUAL
+                    if (c == Opcode.INVOKEINTERFACE
+                        || c == Opcode.INVOKESTATIC
+                        || c == Opcode.INVOKEVIRTUAL
+                        || (includeInvokeSpecial && c == Opcode.INVOKESPECIAL)
                     ) {
                         val index = iterator.u16bitAt(pos + 1)
                         val cname = constPool.eqMember(
@@ -97,6 +103,42 @@ abstract class SpecificTransform {
         }
         return false
     }
+
+    fun filterMethodCallClasses(
+        allInputClass: Set<CtClass>,
+        targetMethods: List<CtMethod>,
+        includeInvokeSpecial: Boolean = true
+    ) = allInputClass.filter { ctClass ->
+        targetMethods.any { targetMethod ->
+            matchMethodCallInClass(targetMethod, ctClass, includeInvokeSpecial)
+        }
+    }.toSet()
+
+    fun matchConstructorCallInClass(name: String, clazz: CtClass): Boolean {
+        for (methodInfo in clazz.classFile2.methods) {
+            methodInfo as MethodInfo
+            val codeAttr: CodeAttribute? = methodInfo.codeAttribute
+            val constPool = methodInfo.constPool
+            if (codeAttr != null) {
+                val iterator = codeAttr.iterator()
+                while (iterator.hasNext()) {
+                    val pos = iterator.next()
+                    if (iterator.byteAt(pos) == Opcode.INVOKESPECIAL) {
+                        val index = iterator.u16bitAt(pos + 1)
+                        if (constPool.isConstructor(name, index) != 0) {
+                            return true
+                        }
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    fun filterConstructorCallClasses(allInputClass: Set<CtClass>, className: String) =
+        allInputClass.filter { ctClass ->
+            matchConstructorCallInClass(className, ctClass)
+        }.toSet()
 
     private fun matchClass(
         methodName: String,

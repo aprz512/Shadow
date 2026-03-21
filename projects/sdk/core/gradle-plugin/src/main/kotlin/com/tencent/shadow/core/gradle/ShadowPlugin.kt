@@ -64,7 +64,8 @@ class ShadowPlugin : Plugin<Project> {
             val shadowTransform = ShadowTransform(
                 project,
                 lateInitBuilder,
-                { shadowExtension.transformConfig.useHostContext }
+                { shadowExtension.transformConfig.useHostContext },
+                { shadowExtension.transformConfig.skipTransformPackages }
             )
             androidComponentsExtension.onVariants(
                 selector = androidComponentsExtension.selector()
@@ -166,7 +167,8 @@ class ShadowPlugin : Plugin<Project> {
                 it.doLast {
                     val processedManifestFile = mergedManifest.get().asFile
                     val resourcePackageName = pluginVariant.namespace.get()
-                    val manifestResourceReferences = collectManifestResourceReferences(processedManifestFile)
+                    val manifestResourceReferences =
+                        collectManifestResourceReferences(processedManifestFile)
                     val resourceReferencePackageLookup = resolveResourceReferencePackageLookup(
                         project,
                         variantName,
@@ -225,7 +227,7 @@ class ShadowPlugin : Plugin<Project> {
                     if (packageIdValue >= 0x7f) {
                         throw Error(
                             "minSdkVersion小于26时--package-id必须小于0x7f，" +
-                                "同时使用--allow-reserved-package-id选项。"
+                                    "同时使用--allow-reserved-package-id选项。"
                         )
                     } else {
                         foundPackageIdParameter = true
@@ -235,15 +237,15 @@ class ShadowPlugin : Plugin<Project> {
         }
         if (!foundPackageIdParameter) {
             val example1 = "androidResources {\n" +
-                "    additionalParameters += [\"--package-id\", \"0x80\"]\n" +
-                "}"
+                    "    additionalParameters += [\"--package-id\", \"0x80\"]\n" +
+                    "}"
             val example2 = "androidResources {\n" +
-                "    additionalParameters += [\"--package-id\", \"0x7E\", \"--allow-reserved-package-id\"]\n" +
-                "}"
+                    "    additionalParameters += [\"--package-id\", \"0x7E\", \"--allow-reserved-package-id\"]\n" +
+                    "}"
             val example = if (minSdkVersion > VersionCodes.O) example1 else example2
             throw Error(
                 "插件需要利用aapt2的修改资源ID前缀的选项使其与宿主不同。\n" +
-                    "没有找到--package-id参数。示例：\n" + example
+                        "没有找到--package-id参数。示例：\n" + example
             )
         }
     }
@@ -260,19 +262,21 @@ class ShadowPlugin : Plugin<Project> {
         val symbolOwners = linkedMapOf<String, LinkedHashSet<String>>()
         collectCompileClasspathProjects(project, variantName).forEach { dependencyProject ->
             findPackageAwareRFiles(dependencyProject).forEach { symbolFile ->
-                ResourceSymbolLookup.parsePackageAwareRFile(symbolFile).forEach { (reference, packageName) ->
+                ResourceSymbolLookup.parsePackageAwareRFile(symbolFile)
+                    .forEach { (reference, packageName) ->
+                        if (reference in manifestResourceReferences) {
+                            symbolOwners.getOrPut(reference) { linkedSetOf() }.add(packageName)
+                        }
+                    }
+            }
+        }
+        collectCompileClasspathAars(project, variantName).forEach { aarFile ->
+            ResourceSymbolLookup.parseAarResourceSymbols(aarFile)
+                .forEach { (reference, packageName) ->
                     if (reference in manifestResourceReferences) {
                         symbolOwners.getOrPut(reference) { linkedSetOf() }.add(packageName)
                     }
                 }
-            }
-        }
-        collectCompileClasspathAars(project, variantName).forEach { aarFile ->
-            ResourceSymbolLookup.parseAarResourceSymbols(aarFile).forEach { (reference, packageName) ->
-                if (reference in manifestResourceReferences) {
-                    symbolOwners.getOrPut(reference) { linkedSetOf() }.add(packageName)
-                }
-            }
         }
 
         return symbolOwners.mapValues { (reference, owners) ->
@@ -413,6 +417,7 @@ class ShadowPlugin : Plugin<Project> {
 
     class TransformConfig {
         var useHostContext: Array<String> = emptyArray()
+        var skipTransformPackages: Array<String> = emptyArray()
     }
 
     companion object {

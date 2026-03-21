@@ -65,7 +65,8 @@ class AarToJarPlugin : Plugin<Project> {
         createJarPackageTask: TaskProvider<Copy>
     ) {
         val configurationName = "jar-${buildType}"
-        val jarFile = project.layout.buildDirectory.file("outputs/jar/${project.name}-${buildType}.jar")
+        val jarFile =
+            project.layout.buildDirectory.file("outputs/jar/${project.name}-${buildType}.jar")
         project.configurations.create(configurationName)
         project.artifacts.add(configurationName, jarFile) {
             it.builtBy(createJarPackageTask)

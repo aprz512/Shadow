@@ -137,10 +137,48 @@ class ContentProviderTransform : SpecificTransform() {
         val uriParseCodeConverter = prepareUriParseCodeConverter(mClassPool)
         val uriBuilderCodeConverter = prepareUriBuilderCodeConverter(mClassPool)
         val contentResolverCodeConverter = prepareContentResolverCodeConverter(mClassPool)
+        val uriParseMethods = mClassPool[AndroidUriClassname].methods.filter { it.name == "parse" }
+        val uriClass = mClassPool[AndroidUriClassname]
+        val uriBuilderClass = mClassPool[uriBuilderName]
+        val buildMethod = uriBuilderClass.getMethod("build", Descriptor.ofMethod(uriClass, null))
+        val resolverClass = mClassPool[resolverName]
+        val stringClass = mClassPool["java.lang.String"]
+        val bundleClass = mClassPool["android.os.Bundle"]
+        val observerClass = mClassPool["android.database.ContentObserver"]
+        val contentResolverMethods = listOf(
+            resolverClass.getMethod(
+                "call",
+                Descriptor.ofMethod(
+                    bundleClass,
+                    arrayOf(uriClass, stringClass, stringClass, bundleClass)
+                )
+            ),
+            resolverClass.getMethod(
+                "notifyChange",
+                Descriptor.ofMethod(
+                    CtClass.voidType,
+                    arrayOf(uriClass, observerClass)
+                )
+            ),
+            resolverClass.getMethod(
+                "notifyChange",
+                Descriptor.ofMethod(
+                    CtClass.voidType,
+                    arrayOf(uriClass, observerClass, CtClass.booleanType)
+                )
+            ),
+            resolverClass.getMethod(
+                "notifyChange",
+                Descriptor.ofMethod(
+                    CtClass.voidType,
+                    arrayOf(uriClass, observerClass, CtClass.intType)
+                )
+            )
+        )
 
         newStep(object : TransformStep {
             override fun filter(allInputClass: Set<CtClass>) =
-                filterRefClasses(allInputClass, listOf(AndroidUriClassname))
+                filterMethodCallClasses(allInputClass, uriParseMethods)
 
             override fun transform(ctClass: CtClass) {
                 try {
@@ -154,7 +192,7 @@ class ContentProviderTransform : SpecificTransform() {
 
         newStep(object : TransformStep {
             override fun filter(allInputClass: Set<CtClass>) =
-                filterRefClasses(allInputClass, listOf(uriBuilderName))
+                filterMethodCallClasses(allInputClass, listOf(buildMethod))
 
             override fun transform(ctClass: CtClass) {
                 try {
@@ -168,7 +206,7 @@ class ContentProviderTransform : SpecificTransform() {
 
         newStep(object : TransformStep {
             override fun filter(allInputClass: Set<CtClass>) =
-                filterRefClasses(allInputClass, listOf(resolverName))
+                filterMethodCallClasses(allInputClass, contentResolverMethods)
 
             override fun transform(ctClass: CtClass) {
                 try {

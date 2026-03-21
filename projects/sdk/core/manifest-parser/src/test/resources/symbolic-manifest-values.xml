@@ -2,8 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.tencent.shadow.sample.host">
 
-    <application
-        android:name="com.tencent.shadow.sample.plugin.app.lib.UseCaseApplication"
+    <application android:name="com.tencent.shadow.sample.plugin.app.lib.UseCaseApplication"
         android:theme="@ref/0x01030006">
 
         <activity

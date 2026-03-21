@@ -21,7 +21,10 @@ package com.tencent.shadow.core.transform_kit
 import javassist.ClassPool
 import javassist.CtClass
 
-abstract class AbstractTransformManager(private val classPool: ClassPool) {
+abstract class AbstractTransformManager(
+    private val classPool: ClassPool,
+    private val shouldTransformClass: (CtClass) -> Boolean = { true }
+) {
     abstract val mTransformList: List<SpecificTransform>
 
     fun setupAll(allInputCtClass: Set<CtClass>) {
@@ -33,9 +36,11 @@ abstract class AbstractTransformManager(private val classPool: ClassPool) {
 
     fun fireAll(allInputCtClass: Set<CtClass>) {
         mTransformList.flatMap { it.list }.forEach { transform ->
-            transform.filter(allInputCtClass).forEach {
-                transform.transform(it)
-            }
+            transform.filter(allInputCtClass)
+                .filter(shouldTransformClass)
+                .forEach {
+                    transform.transform(it)
+                }
         }
     }
 }

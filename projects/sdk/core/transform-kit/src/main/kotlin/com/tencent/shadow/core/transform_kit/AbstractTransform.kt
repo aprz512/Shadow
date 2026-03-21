@@ -22,7 +22,6 @@ import javassist.ClassPool
 import javassist.CtClass
 import org.gradle.api.Project
 import java.io.BufferedWriter
-import java.io.DataOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.FileWriter
@@ -90,18 +89,16 @@ abstract class AbstractTransform(
     }
 
     override fun onOutputClass(className: String, outputStream: OutputStream) {
-        classPool[className].debugWriteJar(mDebugClassJarZOS)
-        super.onOutputClass(className, outputStream)
+        val classBytes = getOutputClassBytes(className)
+        debugWriteJar(className, classBytes, mDebugClassJarZOS)
+        outputStream.write(classBytes)
     }
 
-    private fun CtClass.debugWriteJar(outputStream: ZipOutputStream) {
+    private fun debugWriteJar(className: String, bytes: ByteArray, outputStream: ZipOutputStream) {
         try {
-            val entryName = name.replace('.', '/') + ".class"
+            val entryName = className.replace('.', '/') + ".class"
             outputStream.putNextEntry(ZipEntry(entryName))
-            val p = stopPruning(true)
-            toBytecode(DataOutputStream(outputStream))
-            defrost()
-            stopPruning(p)
+            outputStream.write(bytes)
         } catch (e: Exception) {
             outputStream.close()
             throw RuntimeException(e)

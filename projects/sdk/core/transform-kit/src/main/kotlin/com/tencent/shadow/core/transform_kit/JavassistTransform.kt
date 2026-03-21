@@ -33,29 +33,32 @@ open class JavassistTransform(project: Project, val classPoolBuilder: ClassPoolB
      * 拿到所有CtClass作为字节码编辑的输入数据。
      */
     val allInputCtClass = mutableSetOf<CtClass>()
+    private val inputClassBytes = mutableMapOf<String, ByteArray>()
     lateinit var classPool: ClassPool
 
     override fun onOutputClass(className: String, outputStream: OutputStream) {
-        classPool[className].writeOut(outputStream)
+        outputStream.write(getOutputClassBytes(className))
     }
 
     override fun loadDotClassFile(classFile: File): String {
-        val ctClass: CtClass = classFile.inputStream().use {
-            classPool.makeClass(it)
-        }
-        allInputCtClass.add(ctClass)
-        return ctClass.name
+        return loadClassBytes(classFile.readBytes())
     }
 
     override fun loadClassFromJar(zipInputStream: ZipInputStream): String {
-        val ctClass = classPool.makeClass(zipInputStream)
+        return loadClassBytes(zipInputStream.readBytes())
+    }
+
+    private fun loadClassBytes(classBytes: ByteArray): String {
+        val ctClass = classPool.makeClass(classBytes.inputStream())
         allInputCtClass.add(ctClass)
+        inputClassBytes[ctClass.name] = classBytes
         return ctClass.name
     }
 
     override fun beforeTransform() {
         super.beforeTransform()
         allInputCtClass.clear()
+        inputClassBytes.clear()
         classPool = classPoolBuilder.build()
     }
 
@@ -64,8 +67,20 @@ open class JavassistTransform(project: Project, val classPoolBuilder: ClassPoolB
         //do nothing.
     }
 
-    fun CtClass.writeOut(output: OutputStream) {
-        this.toBytecode(java.io.DataOutputStream(output))
+    protected open fun skipTransformPackages(): Array<String> = emptyArray()
+
+    protected fun shouldSkipTransform(className: String): Boolean {
+        return skipTransformPackages().any { packagePrefix ->
+            className == packagePrefix || className.startsWith("$packagePrefix.")
+        }
+    }
+
+    protected open fun getOutputClassBytes(className: String): ByteArray {
+        if (shouldSkipTransform(className)) {
+            return inputClassBytes[className]
+                ?: error("Missing original class bytes for $className")
+        }
+        return classPool[className].toBytecode()
     }
 
 }

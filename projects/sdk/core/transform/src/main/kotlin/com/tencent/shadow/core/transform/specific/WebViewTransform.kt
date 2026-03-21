@@ -49,7 +49,7 @@ class WebViewTransform : SpecificTransform() {
 
         newStep(object : TransformStep {
             override fun filter(allInputClass: Set<CtClass>) =
-                filterRefClasses(allInputClass, listOf(AndroidWebViewClassname))
+                filterConstructorCallClasses(allInputClass, AndroidWebViewClassname)
 
             override fun transform(ctClass: CtClass) {
                 try {

@@ -28,7 +28,8 @@ class PluginManifestGeneratorTest {
 
     @Test
     fun testCompileWithResourceReferencePackageLookup() {
-        val testFile = File(javaClass.classLoader.getResource("resource-package-lookup.xml")!!.toURI())
+        val testFile =
+            File(javaClass.classLoader.getResource("resource-package-lookup.xml")!!.toURI())
         val androidManifest = AndroidManifestReader().read(testFile)
         val generator = PluginManifestGenerator()
 

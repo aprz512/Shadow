@@ -49,6 +49,7 @@ class ActivityOptionsSupportTransform : SpecificTransform() {
     override fun setup(allInputClass: Set<CtClass>) {
         newStep(object : TransformStep {
             val codeConverter = CodeConverter()
+            private val targetMethods = mutableListOf<javassist.CtMethod>()
 
             init {
                 val activityOptionsClass = mClassPool[ActivityOptionsClassname]
@@ -71,11 +72,12 @@ class ActivityOptionsSupportTransform : SpecificTransform() {
                         sig(ShadowActivityClassname)
                     )
                     codeConverter.redirectMethodCall(originalMethod, supportMethod)
+                    targetMethods.add(originalMethod)
                 }
             }
 
             override fun filter(allInputClass: Set<CtClass>) =
-                filterRefClasses(allInputClass, listOf(ActivityOptionsClassname))
+                filterMethodCallClasses(allInputClass, targetMethods)
 
             override fun transform(ctClass: CtClass) {
                 ctClass.defrost()

@@ -45,7 +45,10 @@ class LayoutInflaterTransform : SpecificTransform() {
 
         newStep(object : TransformStep {
             override fun filter(allInputClass: Set<CtClass>) =
-                filterRefClasses(allInputClass, listOf(AndroidLayoutInflaterClassname))
+                filterMethodCallClasses(
+                    allInputClass,
+                    listOf(getFactoryMethod, getFactory2Method)
+                )
 
             override fun transform(ctClass: CtClass) {
                 try {

@@ -37,11 +37,13 @@ import com.tencent.shadow.core.transform.specific.WebViewTransform
 import com.tencent.shadow.core.transform_kit.AbstractTransformManager
 import com.tencent.shadow.core.transform_kit.SpecificTransform
 import javassist.ClassPool
+import javassist.CtClass
 
 class TransformManager(
     classPool: ClassPool,
-    useHostContext: () -> Array<String>
-) : AbstractTransformManager(classPool) {
+    useHostContext: () -> Array<String>,
+    shouldTransformClass: (CtClass) -> Boolean = { true }
+) : AbstractTransformManager(classPool, shouldTransformClass) {
 
     /**
      * 按这个列表的顺序应用各子Transform逻辑。

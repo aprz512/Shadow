@@ -176,4 +176,19 @@ class FragmentSupportTransformTest : AbstractTransformTest() {
             Assert.fail("找不到superOnAttach")
         }
     }
+
+    @Test
+    fun superGetContextShouldNotBeSelected() {
+        val targetClass = sLoader["test.fragment.UseSuperGetContextFragment"]
+        val allInputClass = setOf(targetClass)
+
+        val transform = FragmentSupportTransform()
+        transform.mClassPool = sLoader
+        transform.setup(allInputClass)
+
+        Assert.assertFalse(
+            "仅调用 super.getContext 的类不应被第一步 method redirect 选中",
+            transform.list.first().filter(allInputClass).contains(targetClass)
+        )
+    }
 }

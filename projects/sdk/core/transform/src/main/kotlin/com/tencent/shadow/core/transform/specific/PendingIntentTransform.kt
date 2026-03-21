@@ -52,7 +52,7 @@ class PendingIntentTransform : SpecificTransform() {
 
         newStep(object : TransformStep {
             override fun filter(allInputClass: Set<CtClass>) =
-                filterRefClasses(allInputClass, listOf(AndroidPendingIntentClassname))
+                filterMethodCallClasses(allInputClass, method_getPengdingIntent)
 
             override fun transform(ctClass: CtClass) {
                 try {

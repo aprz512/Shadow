@@ -59,9 +59,11 @@ class DialogSupportTransform : SpecificTransform() {
                 arrayOf(androidDialog)
             )
         )
+        val dialogMethods = listOf(setOwnerActivityMethod, getOwnerActivityMethod)
 
         newStep(object : TransformStep {
-            override fun filter(allInputClass: Set<CtClass>) = allInputClass
+            override fun filter(allInputClass: Set<CtClass>) =
+                filterMethodCallClasses(allInputClass, dialogMethods)
 
             override fun transform(ctClass: CtClass) {
                 ctClass.defrost()
